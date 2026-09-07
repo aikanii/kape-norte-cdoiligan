@@ -1,0 +1,179 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", ui-serif, Georgia, serif;
+}
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design system definition.
+ *
+ * The @theme inline block maps CSS custom properties to Tailwind utility
+ * classes (e.g. --color-primary -> bg-primary, text-primary).
+ *
+ * The :root and .dark blocks define the actual color values using oklch.
+ * All colors MUST use oklch format.
+ *
+ * To add a new semantic color:
+ * 1. Add the variable to :root (light value) and .dark (dark value)
+ * 2. Register it in @theme inline as --color-<name>: var(--<name>)
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+  --radius: 1rem;
+  --background: oklch(0.145 0.014 52);
+  --foreground: oklch(0.955 0.017 78);
+  --card: oklch(0.215 0.017 52 / 72%);
+  --card-foreground: oklch(0.955 0.017 78);
+  --popover: oklch(0.19 0.016 52);
+  --popover-foreground: oklch(0.955 0.017 78);
+  --primary: oklch(0.7 0.145 62);
+  --primary-foreground: oklch(0.16 0.018 48);
+  --secondary: oklch(0.31 0.035 62);
+  --secondary-foreground: oklch(0.94 0.025 78);
+  --muted: oklch(0.255 0.018 52);
+  --muted-foreground: oklch(0.72 0.026 72);
+  --accent: oklch(0.34 0.052 67);
+  --accent-foreground: oklch(0.96 0.021 78);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.984 0.003 247.858);
+  --border: oklch(0.96 0.025 82 / 14%);
+  --input: oklch(0.96 0.025 82 / 17%);
+  --ring: oklch(0.7 0.145 62);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.18 0.016 52);
+  --sidebar-foreground: oklch(0.955 0.017 78);
+  --sidebar-primary: oklch(0.7 0.145 62);
+  --sidebar-primary-foreground: oklch(0.16 0.018 48);
+  --sidebar-accent: oklch(0.29 0.035 62);
+  --sidebar-accent-foreground: oklch(0.955 0.017 78);
+  --sidebar-border: oklch(0.96 0.025 82 / 12%);
+  --sidebar-ring: oklch(0.7 0.145 62);
+}
+
+.dark {
+  --background: oklch(0.19 0.02 50);
+  --foreground: oklch(0.95 0.015 80);
+  --card: oklch(0.24 0.025 50);
+  --card-foreground: oklch(0.95 0.015 80);
+  --popover: oklch(0.208 0.042 265.755);
+  --popover-foreground: oklch(0.984 0.003 247.858);
+  --primary: oklch(0.7 0.13 55);
+  --primary-foreground: oklch(0.2 0.03 45);
+  --secondary: oklch(0.3 0.03 55);
+  --secondary-foreground: oklch(0.95 0.015 80);
+  --muted: oklch(0.28 0.025 55);
+  --muted-foreground: oklch(0.72 0.025 70);
+  --accent: oklch(0.33 0.04 55);
+  --accent-foreground: oklch(0.95 0.015 80);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.984 0.003 247.858);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.7 0.13 55);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.208 0.042 265.755);
+  --sidebar-foreground: oklch(0.984 0.003 247.858);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
+  --sidebar-accent: oklch(0.279 0.041 260.031);
+  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.551 0.027 264.364);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    background-image:
+      radial-gradient(circle at 90% 5%, oklch(0.43 0.09 60 / 16%), transparent 28rem),
+      linear-gradient(180deg, oklch(0.15 0.014 52), oklch(0.115 0.012 48));
+    background-attachment: fixed;
+    letter-spacing: 0;
+  }
+
+  ::selection {
+    background: oklch(0.7 0.145 62 / 35%);
+  }
+
+  select option {
+    background: oklch(0.18 0.016 52);
+  }
+}
+
+@utility glass-panel {
+  background: oklch(0.22 0.018 55 / 68%);
+  border: 1px solid oklch(0.96 0.025 82 / 14%);
+  box-shadow: 0 24px 70px oklch(0.06 0.01 45 / 42%), inset 0 1px 0 oklch(1 0 0 / 7%);
+  backdrop-filter: blur(22px) saturate(125%);
+}
+
+@utility glass-field {
+  background: oklch(0.13 0.012 50 / 48%);
+  border: 1px solid oklch(0.96 0.025 82 / 12%);
+  backdrop-filter: blur(14px);
+}
+
+@utility warm-shadow {
+  box-shadow: 0 20px 55px oklch(0.06 0.01 45 / 38%);
+}

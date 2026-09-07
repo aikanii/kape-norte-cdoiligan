@@ -1,0 +1,29 @@
+# Cloudflare Workers configuration for Kape Norte
+# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/
+
+name = "kape-norte"
+main = ".output/server/index.mjs"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = ".output/public"
+binding = "ASSETS"
+
+[observability]
+enabled = true
+
+# --- Secrets (do NOT put values here) ---
+# Set these once with:
+#   npx wrangler secret put SUPABASE_URL
+#   npx wrangler secret put SUPABASE_PUBLISHABLE_KEY
+#   npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY   (optional - only needed for the admin/places-sync server routes)
+#   npx wrangler secret put PLACES_SYNC_TOKEN           (optional - only needed for /api/public/sync-places)
+#
+# The VITE_* values are baked in at build time from your .env file, so build
+# locally with the same .env before running `npx wrangler deploy`.
+
+# --- Custom domain ---
+# Add kapenorte.dpdns.org in the Cloudflare dashboard:
+#   Workers & Pages > kape-norte > Settings > Domains & Routes > Add > Custom Domain
+# (the zone for dpdns.org must be active on your Cloudflare account first)
