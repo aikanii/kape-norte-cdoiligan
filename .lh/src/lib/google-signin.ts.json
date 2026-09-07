@@ -1,0 +1,18 @@
+{
+    "sourceFile": "src/lib/google-signin.ts",
+    "activeCommit": 0,
+    "commits": [
+        {
+            "activePatchIndex": 0,
+            "patches": [
+                {
+                    "date": 1788785269867,
+                    "content": "Index: \n===================================================================\n--- \n+++ \n"
+                }
+            ],
+            "date": 1788785269867,
+            "name": "Commit-0",
+            "content": "import { supabase } from \"@/integrations/supabase/client\";\r\nimport { lovable } from \"@/integrations/lovable/index\";\r\n\r\n/**\r\n * The Lovable-managed OAuth helper only works on Lovable-hosted origins\r\n * (*.lovable.app / *.lovableproject.com). On a self-hosted deployment\r\n * (e.g. Cloudflare Workers) it 404s, so fall back to the standard\r\n * Supabase OAuth redirect flow.\r\n */\r\nfunction isLovableHost() {\r\n  const h = window.location.hostname;\r\n  return (\r\n    h.endsWith(\".lovable.app\") ||\r\n    h.endsWith(\".lovableproject.com\") ||\r\n    h === \"localhost\" ||\r\n    h === \"127.0.0.1\"\r\n  );\r\n}\r\n\r\nexport async function signInWithGoogle(redirectTo?: string): Promise<{ error?: string }> {\r\n  const target = redirectTo ?? window.location.origin;\r\n\r\n  if (isLovableHost()) {\r\n    const result = await lovable.auth.signInWithOAuth(\"google\", { redirect_uri: target });\r\n    if (result.error) return { error: \"Google sign-in failed. Please try again.\" };\r\n    return {};\r\n  }\r\n\r\n  const { error } = await supabase.auth.signInWithOAuth({\r\n    provider: \"google\",\r\n    options: { redirectTo: target },\r\n  });\r\n  if (error) return { error: error.message };\r\n  return {};\r\n}\r\n"
+        }
+    ]
+}

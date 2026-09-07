@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
+import { signInWithGoogle } from "@/lib/google-signin";
 import { SiteHeader } from "@/components/SiteHeader";
 import { useSession } from "@/hooks/useSession";
 
@@ -74,13 +74,8 @@ function AuthPage() {
 
   const google = async () => {
     setError(null);
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
-    if (result.error) {
-      setError("Google sign-in failed. Please try again.");
-      return;
-    }
+    const result = await signInWithGoogle();
+    if (result.error) setError(result.error);
   };
 
   return (
