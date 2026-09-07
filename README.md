@@ -1,25 +1,49 @@
-# Welcome to your Lovable project
+# Kape Norte
 
-This project was built with [Lovable](https://lovable.dev).
+Coffee Spotter is a directory for discovering, reviewing, and managing coffee shops in Iligan City and Cagayan de Oro.
 
-## Build with Lovable
+## About the application
 
-Open your project in the [Lovable editor](https://lovable.dev) and keep building.
+Kape Norte helps coffee lovers find their next favorite cafe across Northern Mindanao. Visitors can browse shops by city and area, compare details such as price range, opening hours, tags, photos, ratings, and reviews, then open a shop profile for directions and more information.
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
-- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
+The application also gives the local coffee community a place to contribute. Signed-in customers can share ratings and comments, while cafe owners can submit their shop, maintain its public details, and manage their listing through the owner area. The result is a practical, community-informed guide for choosing where to meet, work, or enjoy a good cup of coffee.
+
+## Requirements
+
+- Node.js 20 or later
+- Bun 1.4 or later
+- A Supabase project
 
 ## Development
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+Install dependencies and start the Vite development server:
 
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
+```bash
+bun install
+bun run dev
 ```
+
+Create a `.env` file in the project root with the Supabase and Google Maps values required by your environment. Never commit secrets.
+
+## Commands
+
+```bash
+bun run dev       # Start the development server
+bun run build     # Create the production Cloudflare build
+bun run preview   # Preview the production build locally
+bun run lint      # Run ESLint
+```
+
+## Deployment
+
+The application is built for Cloudflare Workers with Nitro and Wrangler.
+
+```bash
+bun run build
+npx wrangler deploy
+```
+
+Configure the required runtime secrets with Wrangler before deploying. See [DEPLOY-CLOUDFLARE.md](DEPLOY-CLOUDFLARE.md) for the complete Cloudflare and Supabase setup.
 
 ## Built with
 
@@ -27,3 +51,5 @@ npm run dev
 - TypeScript
 - React
 - Tailwind CSS
+- Supabase
+- Cloudflare Workers
