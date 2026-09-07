@@ -13,12 +13,19 @@ binding = "ASSETS"
 [observability]
 enabled = true
 
+# --- Public runtime variables ---
+# These are NOT secret (the publishable key is already visible in your site's
+# browser code), so declaring them here makes them reliably available to the
+# Worker's server code. Without these lines the site builds fine but every
+# page fails at runtime with "supabaseUrl is required".
+[vars]
+SUPABASE_URL = "https://fcqfxuxgfhkeweugzpab.supabase.co"
+SUPABASE_PUBLISHABLE_KEY = "sb_publishable_FIFxTwE5JdCeVGOQmDs7Qw_hJCd-Y-H"
+
 # --- Secrets (do NOT put values here) ---
-# Set these once with:
-#   npx wrangler secret put SUPABASE_URL
-#   npx wrangler secret put SUPABASE_PUBLISHABLE_KEY
-#   npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY   (optional - only needed for the admin/places-sync server routes)
-#   npx wrangler secret put PLACES_SYNC_TOKEN           (optional - only needed for /api/public/sync-places)
+# Optional - only needed for the admin dashboard and places-sync routes:
+#   npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+#   npx wrangler secret put PLACES_SYNC_TOKEN           (protects /api/public/sync-places)
 #
 # The VITE_* values are baked in at build time from your .env file, so build
 # locally with the same .env before running `npx wrangler deploy`.

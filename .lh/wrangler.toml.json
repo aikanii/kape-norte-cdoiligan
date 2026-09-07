@@ -1,0 +1,18 @@
+{
+    "sourceFile": "wrangler.toml",
+    "activeCommit": 0,
+    "commits": [
+        {
+            "activePatchIndex": 0,
+            "patches": [
+                {
+                    "date": 1788783944972,
+                    "content": "Index: \n===================================================================\n--- \n+++ \n"
+                }
+            ],
+            "date": 1788783944972,
+            "name": "Commit-0",
+            "content": "# Cloudflare Workers configuration for Kape Norte\n# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/\n\nname = \"kape-norte\"\nmain = \".output/server/index.mjs\"\ncompatibility_date = \"2026-09-01\"\ncompatibility_flags = [\"nodejs_compat\"]\n\n[assets]\ndirectory = \".output/public\"\nbinding = \"ASSETS\"\n\n[observability]\nenabled = true\n\n# --- Public runtime variables ---\n# These are NOT secret (the publishable key is already visible in your site's\n# browser code), so declaring them here makes them reliably available to the\n# Worker's server code. Without these lines the site builds fine but every\n# page fails at runtime with \"supabaseUrl is required\".\n[vars]\nSUPABASE_URL = \"https://fcqfxuxgfhkeweugzpab.supabase.co\"\nSUPABASE_PUBLISHABLE_KEY = \"sb_publishable_FIFxTwE5JdCeVGOQmDs7Qw_hJCd-Y-H\"\n\n# --- Secrets (do NOT put values here) ---\n# Optional - only needed for the admin dashboard and places-sync routes:\n#   npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY\n#   npx wrangler secret put PLACES_SYNC_TOKEN           (protects /api/public/sync-places)\n#\n# The VITE_* values are baked in at build time from your .env file, so build\n# locally with the same .env before running `npx wrangler deploy`.\n\n# --- Custom domain ---\n# Add kapenorte.dpdns.org in the Cloudflare dashboard:\n#   Workers & Pages > kape-norte > Settings > Domains & Routes > Add > Custom Domain\n# (the zone for dpdns.org must be active on your Cloudflare account first)\n"
+        }
+    ]
+}
