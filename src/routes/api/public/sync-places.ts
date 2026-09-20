@@ -25,9 +25,37 @@ export const Route = createFileRoute("/api/public/sync-places")({
           return Response.json({ imported: 0, note: "No coffee shops returned." });
         }
 
-        const { error } = await supabaseAdmin
+        // A refresh must not overwrite owner edits or change already-published URLs.
+        const { data: existingRows, error: existingError } = await supabaseAdmin
           .from("shops")
-          .upsert(shops as never, { onConflict: "place_id" });
+          .select(
+            "place_id, slug, submitted_by, google_photo_url, google_photo_attribution, google_photo_refreshed_at",
+          )
+          .in(
+            "place_id",
+            shops.map((shop) => shop.place_id),
+          );
+        if (existingError)
+          return new Response("Could not check existing listings", { status: 500 });
+        const existing = new Map((existingRows ?? []).map((shop) => [shop.place_id, shop]));
+        const updates = shops
+          .filter((shop) => !existing.get(shop.place_id)?.submitted_by)
+          .map((shop) => {
+            const previous = existing.get(shop.place_id);
+            return {
+              ...shop,
+              slug: previous?.slug ?? shop.slug,
+              google_photo_url: shop.google_photo_url ?? previous?.google_photo_url ?? null,
+              google_photo_attribution: shop.google_photo_url
+                ? shop.google_photo_attribution
+                : (previous?.google_photo_attribution ?? null),
+              google_photo_refreshed_at:
+                shop.google_photo_refreshed_at ?? previous?.google_photo_refreshed_at ?? null,
+            };
+          });
+        const { error } = updates.length
+          ? await supabaseAdmin.from("shops").upsert(updates, { onConflict: "place_id" })
+          : { error: null };
         if (error) {
           console.error("Shop upsert failed", error);
           return new Response(`Save failed: ${error.message}`, { status: 500 });
@@ -62,7 +90,11 @@ export const Route = createFileRoute("/api/public/sync-places")({
           if (coverError) console.error("Cafe cover update failed", coverError);
         }
 
-        return Response.json({ imported: shops.length, photos: shops.filter((shop) => shop.google_photo_url).length + covers.length });
+        return Response.json({
+          imported: updates.length,
+          preservedOwnerListings: shops.length - updates.length,
+          photos: shops.filter((shop) => shop.google_photo_url).length + covers.length,
+        });
       },
     },
   },

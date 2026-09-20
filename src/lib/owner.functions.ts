@@ -1,3 +1,6 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
+import { z } from "zod";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
@@ -16,7 +19,7 @@ export type ClaimRow = {
   shop_area: string;
 };
 
-async function assertAdmin(context: { supabase: any; userId: string }) {
+export async function assertAdmin(context: { supabase: SupabaseClient<Database>; userId: string }) {
   const { data, error } = await context.supabase.rpc("has_role", {
     _user_id: context.userId,
     _role: "admin",
@@ -28,10 +31,11 @@ async function assertAdmin(context: { supabase: any; userId: string }) {
 export const amIAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<boolean> => {
-    const { data } = await context.supabase.rpc("has_role", {
+    const { data, error } = await context.supabase.rpc("has_role", {
       _user_id: context.userId,
       _role: "admin",
     });
+    if (error) throw new Error(error.message);
     return data === true;
   });
 
@@ -47,7 +51,7 @@ export const listClaims = createServerFn({ method: "GET" })
       .order("created_at", { ascending: false })
       .limit(200);
     if (error) throw new Error(error.message);
-    return (data ?? []).map((row: any) => ({
+    return (data ?? []).map((row) => ({
       id: row.id,
       shop_id: row.shop_id,
       user_id: row.user_id,
@@ -65,41 +69,36 @@ export const listClaims = createServerFn({ method: "GET" })
 
 export const decideClaim = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { claimId: string; approve: boolean }) => {
-    if (typeof input?.claimId !== "string" || input.claimId.length < 10) {
-      throw new Error("Invalid claim");
-    }
-    return { claimId: input.claimId, approve: Boolean(input.approve) };
-  })
+  .validator(z.object({ claimId: z.string().uuid(), approve: z.boolean() }))
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
-    const { data: claim, error } = await context.supabase
-      .from("shop_claims")
-      .select("id, shop_id, user_id, status")
-      .eq("id", data.claimId)
-      .maybeSingle();
+    const { error } = await context.supabase.rpc("review_shop_claim", {
+      _claim_id: data.claimId,
+      _approve: data.approve,
+    });
     if (error) throw new Error(error.message);
-    if (!claim) throw new Error("Claim not found");
+    return { ok: true };
+  });
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+export const listPendingShops = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context);
+    const { data, error } = await context.supabase
+      .from("shops")
+      .select("id, name, city, area, address, blurb")
+      .eq("status", "pending")
+      .order("created_at");
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  });
 
-    if (data.approve) {
-      const { error: shopErr } = await supabaseAdmin
-        .from("shops")
-        .update({ submitted_by: claim.user_id })
-        .eq("id", claim.shop_id);
-      if (shopErr) throw new Error(shopErr.message);
-    }
-
-    const { error: claimErr } = await supabaseAdmin
-      .from("shop_claims")
-      .update({
-        status: data.approve ? "approved" : "rejected",
-        reviewed_by: context.userId,
-        reviewed_at: new Date().toISOString(),
-      })
-      .eq("id", claim.id);
-    if (claimErr) throw new Error(claimErr.message);
-
+export const publishShop = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator(z.object({ shopId: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    const { error } = await context.supabase.rpc("publish_shop", { _shop_id: data.shopId });
+    if (error) throw new Error(error.message);
     return { ok: true };
   });

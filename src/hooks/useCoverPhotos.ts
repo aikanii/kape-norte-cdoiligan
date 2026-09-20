@@ -4,10 +4,13 @@ import type { Shop } from "@/lib/hours";
 
 /** Map of shop id -> signed cover photo URL, for the list and the map. */
 export function useCoverPhotos(shops: Shop[]) {
-  const [covers, setCovers] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      shops.filter((shop) => shop.google_photo_url).map((shop) => [shop.id, shop.google_photo_url]),
-    ) as Record<string, string>,
+  const [covers, setCovers] = useState<Record<string, string>>(
+    () =>
+      Object.fromEntries(
+        shops
+          .filter((shop) => shop.google_photo_url)
+          .map((shop) => [shop.id, shop.google_photo_url]),
+      ) as Record<string, string>,
   );
 
   useEffect(() => {
@@ -19,7 +22,14 @@ export function useCoverPhotos(shops: Shop[]) {
           .map((shop) => [shop.id, shop.google_photo_url]),
       ) as Record<string, string>;
       try {
-        const paths = await fetchCoverPaths();
+        const paths: Record<string, string> = {
+          ...Object.fromEntries(
+            shops
+              .filter((shop) => shop.photo_path)
+              .map((shop) => [shop.id, shop.photo_path as string]),
+          ),
+          ...(await fetchCoverPaths()),
+        };
         const urls = await signPaths(Object.values(paths));
         if (!active) return;
         const byShop: Record<string, string> = { ...googleCovers };

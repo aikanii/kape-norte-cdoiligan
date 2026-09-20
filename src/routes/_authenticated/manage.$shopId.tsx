@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { z } from "zod";
+import { shopSchema as schema, normalizeHours } from "@/lib/shop-form";
 import { supabase } from "@/integrations/supabase/client";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ShopGallery } from "@/components/ShopGallery";
@@ -8,6 +8,7 @@ import {
   DAY_LABELS,
   WEEK_ORDER,
   defaultWeek,
+  inputTime,
   type DayHours,
   type DayKey,
   type WeekHours,
@@ -28,17 +29,6 @@ export const Route = createFileRoute("/_authenticated/manage/$shopId")({
     ],
   }),
   component: ManageShop,
-});
-
-const schema = z.object({
-  name: z.string().trim().min(2, "Enter the shop name").max(100),
-  city: z.string().trim().min(2).max(80),
-  area: z.string().trim().min(2, "Enter the barangay or area").max(80),
-  address: z.string().trim().min(5, "Enter the street address").max(200),
-  blurb: z.string().trim().max(400),
-  lat: z.number().min(-90).max(90),
-  lng: z.number().min(-180).max(180),
-  price_level: z.number().int().min(1).max(3),
 });
 
 const field =
@@ -64,6 +54,7 @@ type ShopRow = {
 };
 
 function ManageShop() {
+  const { user } = Route.useRouteContext();
   const { shopId } = useParams({ from: "/_authenticated/manage/$shopId" });
   const [shop, setShop] = useState<ShopRow | null>(null);
   const [loading, setLoading] = useState(true);
@@ -84,12 +75,15 @@ function ManageShop() {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
+    setLoading(true);
+    setShop(null);
     const { data, error: err } = await supabase
       .from("shops")
       .select(
         "id, slug, name, city, area, address, blurb, price_level, tags, photo_path, google_photo_url, google_photo_attribution, lat, lng, hours, status",
       )
       .eq("id", shopId)
+      .eq("submitted_by", user.id)
       .maybeSingle();
     setLoading(false);
     if (err) {
@@ -101,7 +95,7 @@ function ManageShop() {
     setShop(row);
     setForm({
       name: row.name,
-      city: row.city,
+      city: row.city === "Cagayan de Oro" ? "Cagayan de Oro City" : row.city,
       area: row.area,
       address: row.address,
       blurb: row.blurb ?? "",
@@ -110,8 +104,13 @@ function ManageShop() {
       price_level: String(row.price_level),
       tags: (row.tags ?? []).join(", "),
     });
-    setHours({ ...defaultWeek(), ...((row.hours ?? {}) as Record<DayKey, DayHours>) });
-  }, [shopId]);
+    setHours(
+      Object.fromEntries(WEEK_ORDER.map((day) => [day, row.hours?.[day] ?? null])) as Record<
+        DayKey,
+        DayHours
+      >,
+    );
+  }, [shopId, user.id]);
 
   useEffect(() => {
     void load();
@@ -133,30 +132,35 @@ function ManageShop() {
     setNotice(null);
     const parsed = schema.safeParse({
       ...form,
-      lat: Number(form.lat),
-      lng: Number(form.lng),
-      price_level: Number(form.price_level),
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Please check the form");
       return;
     }
     setBusy(true);
-    const { error: err } = await supabase
-      .from("shops")
-      .update({
-        ...parsed.data,
-        hours,
-        tags: form.tags
-          .split(",")
-          .map((t) => t.trim())
-          .filter(Boolean)
-          .slice(0, 8),
-      })
-      .eq("id", shopId);
-    setBusy(false);
-    if (err) setError(err.message);
-    else setNotice("Saved. Your listing is updated.");
+    try {
+      const { error: err } = await supabase
+        .from("shops")
+        .update({
+          ...parsed.data,
+          hours: normalizeHours(hours),
+          tags: form.tags
+            .split(",")
+            .map((t) => t.trim())
+            .filter(Boolean)
+            .slice(0, 8),
+        })
+        .eq("id", shopId)
+        .eq("submitted_by", user.id)
+        .select("id")
+        .single();
+      if (err) throw new Error(err.message);
+      setNotice("Saved. Your listing is updated.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save changes");
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (loading) {
@@ -173,6 +177,11 @@ function ManageShop() {
       <div className="min-h-screen bg-background">
         <SiteHeader />
         <main className="mx-auto max-w-2xl px-5 py-16">
+          {error && (
+            <p role="alert" className="mb-4 text-sm text-destructive">
+              {error}
+            </p>
+          )}
           <h1 className="font-serif text-2xl font-semibold text-foreground">
             You don't manage this cafe
           </h1>
@@ -205,6 +214,7 @@ function ManageShop() {
         <section className="mt-8">
           <h2 className="font-serif text-xl font-semibold text-foreground">Photos</h2>
           <ShopGallery
+            key={shop.id}
             shopId={shop.id}
             shopName={shop.name}
             legacyPath={shop.photo_path}
@@ -297,6 +307,7 @@ function ManageShop() {
                 <option value="1">₱ budget</option>
                 <option value="2">₱₱ mid</option>
                 <option value="3">₱₱₱ premium</option>
+                <option value="4">₱₱₱₱ luxury</option>
               </select>
             </label>
           </div>
@@ -313,6 +324,9 @@ function ManageShop() {
 
           <fieldset className="glass-panel rounded-2xl p-4">
             <legend className="px-1 text-sm font-medium text-foreground">Opening hours</legend>
+            <p className="text-xs text-muted-foreground">
+              A closing time before opening means the next day. Matching times mean 24 hours.
+            </p>
             <div className="mt-2 flex flex-col gap-2">
               {WEEK_ORDER.map((day) => {
                 const value = hours[day];
@@ -331,7 +345,7 @@ function ManageShop() {
                         <span className="text-muted-foreground">to</span>
                         <input
                           type="time"
-                          value={value[1]}
+                          value={inputTime(value[1])}
                           onChange={(e) => setDay(day, 1, e.target.value)}
                           aria-label={`${DAY_LABELS[day]} closing time`}
                           className="h-9 rounded-lg border border-input bg-background/40 px-2 text-foreground"

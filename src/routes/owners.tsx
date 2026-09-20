@@ -1,15 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { z } from "zod";
+import { credentialsSchema, safeRedirect } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { signInWithGoogle } from "@/lib/google-signin";
 import { SiteHeader } from "@/components/SiteHeader";
 import { useSession } from "@/hooks/useSession";
-
-const schema = z.object({
-  email: z.string().trim().email("Enter a valid email").max(255),
-  password: z.string().min(6, "Use at least 6 characters").max(72),
-});
 
 export const Route = createFileRoute("/owners")({
   head: () => ({
@@ -46,39 +41,49 @@ function OwnersPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (user) navigate({ to: "/owner" });
-  }, [user]);
+    if (user) void navigate({ to: "/owner", replace: true });
+  }, [user, navigate]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setNotice(null);
-    const parsed = schema.safeParse({ email, password });
+    const parsed = credentialsSchema(mode).safeParse({ email, password });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Check your details");
       return;
     }
     setBusy(true);
-    if (mode === "signup") {
-      const { error: err } = await supabase.auth.signUp({
-        email: parsed.data.email,
-        password: parsed.data.password,
-        options: { emailRedirectTo: `${window.location.origin}/owner` },
-      });
+    try {
+      if (mode === "signup") {
+        const { error: err } = await supabase.auth.signUp({
+          ...parsed.data,
+          options: { emailRedirectTo: `${window.location.origin}${"/owner"}` },
+        });
+        if (err) throw new Error(err.message);
+        setNotice("Account created. Check your email if confirmation is required.");
+      } else {
+        const { error: err } = await supabase.auth.signInWithPassword(parsed.data);
+        if (err) throw new Error(err.message);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not sign in. Please try again.");
+    } finally {
       setBusy(false);
-      if (err) setError(err.message);
-      else setNotice("Account created. Check your email if confirmation is required.");
-      return;
     }
-    const { error: err } = await supabase.auth.signInWithPassword(parsed.data);
-    setBusy(false);
-    if (err) setError(err.message);
   };
 
   const google = async () => {
     setError(null);
-    const result = await signInWithGoogle(`${window.location.origin}/owner`);
-    if (result.error) setError(result.error);
+    setBusy(true);
+    try {
+      const result = await signInWithGoogle(`${window.location.origin}${"/owner"}`);
+      if (result.error) setError(result.error);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not connect to Google");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -90,14 +95,15 @@ function OwnersPage() {
           Manage your coffee shop listing
         </h1>
         <p className="mt-3 text-sm text-muted-foreground">
-          Sign in to update your cafe's address, description, opening hours and photos. If your
-          cafe is already listed, you can request access to it after signing in — we'll confirm
-          you're the owner before handing over the listing.
+          Sign in to update your cafe's address, description, opening hours and photos. If your cafe
+          is already listed, you can request access to it after signing in — we'll confirm you're
+          the owner before handing over the listing.
         </p>
 
         <div className="glass-panel mt-8 rounded-3xl p-6">
           <button
             onClick={google}
+            disabled={busy}
             className="w-full rounded-xl border border-input bg-background/40 px-4 py-2.5 text-sm font-medium text-foreground hover:bg-accent"
           >
             Continue with Google
@@ -112,6 +118,7 @@ function OwnersPage() {
               <span className="text-sm text-foreground">Email</span>
               <input
                 type="email"
+                required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@yourcafe.com"
@@ -124,6 +131,7 @@ function OwnersPage() {
               <span className="text-sm text-foreground">Password</span>
               <input
                 type="password"
+                required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete={mode === "signin" ? "current-password" : "new-password"}
@@ -140,11 +148,20 @@ function OwnersPage() {
             </button>
           </form>
 
-          {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
+          {error && (
+            <p role="alert" className="mt-3 text-sm text-destructive">
+              {error}
+            </p>
+          )}
           {notice && <p className="mt-3 text-sm text-muted-foreground">{notice}</p>}
 
           <button
-            onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+            disabled={busy}
+            onClick={() => {
+              setMode(mode === "signin" ? "signup" : "signin");
+              setError(null);
+              setNotice(null);
+            }}
             className="mt-5 text-sm text-primary hover:underline"
           >
             {mode === "signin"

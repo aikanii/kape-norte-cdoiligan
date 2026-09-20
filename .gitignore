@@ -30,3 +30,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment and test output
+.env
+.env.*
+!.env.example
+playwright-report/
+test-results/
+coverage/

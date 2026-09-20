@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,51 +24,52 @@ function Stars({ value }: { value: number }) {
 
 export function Reviews({ shopId }: { shopId: string }) {
   const { user } = useSession();
-  const [reviews, setReviews] = useState<Review[]>([]);
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const load = async () => {
-    const { data } = await supabase
-      .from("reviews")
-      .select("id, user_id, rating, comment, created_at")
-      .eq("shop_id", shopId)
-      .order("created_at", { ascending: false });
-    const rows = (data ?? []) as unknown as Omit<Review, "profiles">[];
-    const ids = Array.from(new Set(rows.map((r) => r.user_id)));
-    let names: Record<string, string> = {};
-    if (ids.length > 0) {
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, display_name")
-        .in("id", ids);
-      names = Object.fromEntries(
-        (profiles ?? []).map((p) => [p.id as string, p.display_name as string]),
-      );
-    }
-    setReviews(
-      rows.map((r) => ({
+  const {
+    data: reviews = [],
+    isPending,
+    error: loadError,
+    refetch,
+  } = useQuery({
+    queryKey: ["reviews", shopId],
+    queryFn: async (): Promise<Review[]> => {
+      const { data, error } = await supabase
+        .from("reviews")
+        .select("id, user_id, rating, comment, created_at")
+        .eq("shop_id", shopId)
+        .order("created_at", { ascending: false });
+      if (error) throw new Error(error.message);
+      const rows = (data ?? []) as unknown as Omit<Review, "profiles">[];
+      const ids = Array.from(new Set(rows.map((r) => r.user_id)));
+      let names: Record<string, string> = {};
+      if (ids.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, display_name")
+          .in("id", ids);
+        names = Object.fromEntries(
+          (profiles ?? []).map((p) => [p.id as string, p.display_name as string]),
+        );
+      }
+      return rows.map((r) => ({
         ...r,
         profiles: { display_name: names[r.user_id] ?? "Coffee lover" },
-      })),
-    );
-  };
-
-
-  useEffect(() => {
-    void load();
-  }, [shopId]);
+      }));
+    },
+  });
 
   const mine = reviews.find((r) => r.user_id === user?.id) ?? null;
-
+  const myRating = mine?.rating ?? 5;
+  const myComment = mine?.comment ?? "";
   useEffect(() => {
-    if (mine) {
-      setRating(mine.rating);
-      setComment(mine.comment);
-    }
-  }, [mine?.id]);
+    setRating(myRating);
+    setComment(myComment);
+    setStatus(null);
+  }, [myRating, myComment, shopId, user?.id]);
 
   const average =
     reviews.length > 0
@@ -79,31 +81,44 @@ export function Reviews({ shopId }: { shopId: string }) {
     if (!user) return;
     setSaving(true);
     setStatus(null);
-    const { error } = await supabase.from("reviews").upsert(
-      {
-        shop_id: shopId,
-        user_id: user.id,
-        rating,
-        comment: comment.trim().slice(0, 1000),
-      },
-      { onConflict: "shop_id,user_id" },
-    );
-    setSaving(false);
-    if (error) {
-      setStatus(error.message);
-      return;
+    try {
+      const { error } = await supabase
+        .from("reviews")
+        .upsert(
+          { shop_id: shopId, user_id: user.id, rating, comment: comment.trim().slice(0, 1000) },
+          { onConflict: "shop_id,user_id" },
+        );
+      if (error) throw new Error(error.message);
+      await refetch();
+      setStatus("Thanks — your review is saved.");
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Could not save your review");
+    } finally {
+      setSaving(false);
     }
-    setStatus("Thanks — your review is saved.");
-    void load();
   };
 
   const remove = async () => {
-    if (!mine) return;
-    await supabase.from("reviews").delete().eq("id", mine.id);
-    setComment("");
-    setRating(5);
-    setStatus("Review deleted.");
-    void load();
+    if (!mine || saving) return;
+    setSaving(true);
+    setStatus(null);
+    try {
+      const { error } = await supabase
+        .from("reviews")
+        .delete()
+        .eq("id", mine.id)
+        .select("id")
+        .single();
+      if (error) throw new Error(error.message);
+      await refetch();
+      setComment("");
+      setRating(5);
+      setStatus("Review deleted.");
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Could not delete your review");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -138,6 +153,7 @@ export function Reviews({ shopId }: { shopId: string }) {
             ))}
           </div>
           <textarea
+            aria-label="Your review"
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             maxLength={1000}
@@ -148,7 +164,7 @@ export function Reviews({ shopId }: { shopId: string }) {
           <div className="mt-3 flex items-center gap-3">
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || isPending || Boolean(loadError)}
               className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
             >
               {mine ? "Update review" : "Post review"}
@@ -157,6 +173,7 @@ export function Reviews({ shopId }: { shopId: string }) {
               <button
                 type="button"
                 onClick={remove}
+                disabled={saving || isPending || Boolean(loadError)}
                 className="text-sm text-muted-foreground hover:text-foreground"
               >
                 Delete
@@ -167,13 +184,30 @@ export function Reviews({ shopId }: { shopId: string }) {
         </form>
       ) : (
         <p className="mt-4 rounded-2xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-          <Link to="/auth" className="text-primary hover:underline">
+          <Link
+            to="/auth"
+            search={{ redirect: typeof window !== "undefined" ? window.location.pathname : "/" }}
+            className="text-primary hover:underline"
+          >
             Sign in
           </Link>{" "}
           to rate this shop and leave a comment.
         </p>
       )}
 
+      {isPending && (
+        <p role="status" className="mt-4 text-sm text-muted-foreground">
+          Loading reviews…
+        </p>
+      )}
+      {loadError && (
+        <p role="alert" className="mt-4 text-sm text-destructive">
+          Could not load reviews.{" "}
+          <button onClick={() => void refetch()} className="underline">
+            Try again
+          </button>
+        </p>
+      )}
       <ul className="mt-5 flex flex-col gap-3">
         {reviews.map((r) => (
           <li key={r.id} className="rounded-xl border border-border bg-card p-4">
@@ -186,7 +220,7 @@ export function Reviews({ shopId }: { shopId: string }) {
             {r.comment && <p className="mt-2 text-sm text-foreground/80">{r.comment}</p>}
           </li>
         ))}
-        {reviews.length === 0 && (
+        {!isPending && !loadError && reviews.length === 0 && (
           <li className="text-sm text-muted-foreground">No reviews yet — be the first.</li>
         )}
       </ul>

@@ -32,6 +32,7 @@ export function ShopGallery({
 
   const load = useCallback(async () => {
     try {
+      setError(null);
       const rows = await fetchShopPhotos(shopId);
       const signed = await signPaths([
         ...rows.map((r) => r.storage_path),
@@ -55,13 +56,15 @@ export function ShopGallery({
     setError(null);
     setBusy(true);
     try {
-      let order = photos.length;
+      if (files.length > 6) throw new Error("Choose up to 6 photos at a time");
+      let order = Math.max(-1, ...photos.map((photo) => photo.sort_order)) + 1;
       for (const file of Array.from(files).slice(0, 6)) {
         await uploadShopPhoto(shopId, user.id, file, order);
         order += 1;
       }
       await load();
     } catch (e) {
+      await load();
       setError(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setBusy(false);
@@ -75,6 +78,7 @@ export function ShopGallery({
       await deleteShopPhoto(photo);
       await load();
     } catch (e) {
+      await load();
       setError(e instanceof Error ? e.message : "Could not delete that photo");
     } finally {
       setBusy(false);
@@ -142,12 +146,7 @@ export function ShopGallery({
                   i === active ? "border-primary" : "border-border"
                 }`}
               >
-                <img
-                  src={item.url}
-                  alt=""
-                  loading="lazy"
-                  className="h-full w-full object-cover"
-                />
+                <img src={item.url} alt="" loading="lazy" className="h-full w-full object-cover" />
               </button>
             </li>
           ))}
@@ -161,7 +160,7 @@ export function ShopGallery({
               {busy ? "Uploading…" : "Add photos"}
               <input
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp"
                 multiple
                 disabled={busy}
                 onChange={(e) => {
@@ -184,13 +183,17 @@ export function ShopGallery({
           </>
         ) : (
           <p className="text-sm text-muted-foreground">
-            <Link to="/auth" className="text-primary hover:underline">
+            <Link
+              to="/auth"
+              search={{ redirect: typeof window !== "undefined" ? window.location.pathname : "/" }}
+              className="text-primary hover:underline"
+            >
               Sign in
             </Link>{" "}
             to add photos of this cafe.
           </p>
         )}
-        <span className="text-xs text-muted-foreground">JPG or PNG, up to 5 MB each.</span>
+        <span className="text-xs text-muted-foreground">JPG, PNG or WebP, up to 5 MB each.</span>
       </div>
 
       {error && <p className="mt-2 text-sm text-destructive">{error}</p>}

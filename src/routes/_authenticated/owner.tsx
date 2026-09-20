@@ -58,24 +58,31 @@ function OwnerDashboard() {
 
   const load = useCallback(async () => {
     if (!user) return;
-    const [{ data: shopRows }, { data: claimRows }] = await Promise.all([
-      supabase
-        .from("shops")
-        .select("id, name, city, area, status")
-        .eq("submitted_by", user.id)
-        .order("name"),
-      supabase
-        .from("shop_claims")
-        .select("id, status, created_at, shops(name, city)")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false }),
-    ]);
+    const [{ data: shopRows, error: shopError }, { data: claimRows, error: claimError }] =
+      await Promise.all([
+        supabase
+          .from("shops")
+          .select("id, name, city, area, status")
+          .eq("submitted_by", user.id)
+          .order("name"),
+        supabase
+          .from("shop_claims")
+          .select("id, status, created_at, shops(name, city)")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false }),
+      ]);
+    if (shopError || claimError) {
+      setError(shopError?.message ?? claimError?.message ?? "Could not load your dashboard");
+      return;
+    }
     setShops((shopRows ?? []) as MyShop[]);
     setClaims((claimRows ?? []) as unknown as MyClaim[]);
   }, [user]);
 
   useEffect(() => {
-    void load();
+    void load().catch((err: unknown) =>
+      setError(err instanceof Error ? err.message : "Could not load your dashboard"),
+    );
   }, [load]);
 
   useEffect(() => {
@@ -86,13 +93,16 @@ function OwnerDashboard() {
     }
     let active = true;
     const t = setTimeout(async () => {
-      const { data } = await supabase
+      const { data, error: searchError } = await supabase
         .from("shops")
         .select("id, name, city, area")
         .is("submitted_by", null)
         .ilike("name", `%${term}%`)
         .limit(8);
-      if (active) setCandidates((data ?? []) as Candidate[]);
+      if (active) {
+        setCandidates((data ?? []) as Candidate[]);
+        if (searchError) setError(searchError.message);
+      }
     }, 250);
     return () => {
       active = false;
@@ -114,24 +124,27 @@ function OwnerDashboard() {
       return;
     }
     setBusy(true);
-    const { error: err } = await supabase.from("shop_claims").insert({
-      ...parsed.data,
-      shop_id: picked.id,
-      user_id: user.id,
-      status: "pending",
-    });
-    setBusy(false);
-    if (err) {
-      setError(
-        err.code === "23505" ? "You already have a pending request for this cafe." : err.message,
-      );
-      return;
+    try {
+      const { error: err } = await supabase.from("shop_claims").insert({
+        ...parsed.data,
+        shop_id: picked.id,
+        user_id: user.id,
+        status: "pending",
+      });
+      if (err)
+        throw new Error(
+          err.code === "23505" ? "You already have a pending request for this cafe." : err.message,
+        );
+      setNotice("Request sent. We'll review it and give you access once confirmed.");
+      setPicked(null);
+      setQuery("");
+      setForm({ contact_name: "", contact_email: "", phone: "", message: "" });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send your request");
+    } finally {
+      setBusy(false);
     }
-    setNotice("Request sent. We'll review it and give you access once confirmed.");
-    setPicked(null);
-    setQuery("");
-    setForm({ contact_name: "", contact_email: "", phone: "", message: "" });
-    void load();
   };
 
   return (
@@ -184,7 +197,10 @@ function OwnerDashboard() {
           confirmed you're the owner.
         </p>
 
-        <form onSubmit={submitClaim} className="glass-panel mt-5 flex flex-col gap-4 rounded-3xl p-6">
+        <form
+          onSubmit={submitClaim}
+          className="glass-panel mt-5 flex flex-col gap-4 rounded-3xl p-6"
+        >
           <label className="flex flex-col gap-1.5">
             <span className="text-sm text-foreground">Search your cafe</span>
             <input
@@ -208,7 +224,10 @@ function OwnerDashboard() {
                     onClick={() => setPicked(c)}
                     className="w-full rounded-xl border border-border px-3 py-2 text-left text-sm text-foreground hover:border-primary"
                   >
-                    {c.name} <span className="text-muted-foreground">— {c.area}, {c.city}</span>
+                    {c.name}{" "}
+                    <span className="text-muted-foreground">
+                      — {c.area}, {c.city}
+                    </span>
                   </button>
                 </li>
               ))}

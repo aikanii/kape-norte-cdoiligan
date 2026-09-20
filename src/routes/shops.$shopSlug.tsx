@@ -1,3 +1,8 @@
+import { queryOptions, useQuery } from "@tanstack/react-query";
+import { DirectoryLoading } from "@/components/DirectoryLoading";
+import { preloadPublicQuery } from "@/lib/public-query";
+import { useNow } from "@/hooks/useNow";
+import { DataLoadError } from "@/components/DataLoadError";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { lazy } from "react";
 import { ClientOnly } from "@/components/ClientOnly";
@@ -9,20 +14,18 @@ import { DAY_LABELS, WEEK_ORDER, formatRange, openState, type Shop } from "@/lib
 
 const ShopMap = lazy(() => import("@/components/ShopMap"));
 
+const shopQuery = (slug: string) =>
+  queryOptions({
+    queryKey: ["shop", slug],
+    queryFn: () => getShopBySlug({ data: { slug } }),
+    staleTime: 5 * 60 * 1000,
+  });
+
 export const Route = createFileRoute("/shops/$shopSlug")({
   loader: async ({ params, context }) => {
-    let shop: Shop | null = null;
-    try {
-      shop = await getShopBySlug({ data: { slug: params.shopSlug } });
-    } catch {
-      shop = null;
-    }
-    if (!shop) {
-      const cached = context.queryClient.getQueryData<Shop[]>(["shops"]);
-      shop = cached?.find((s) => s.slug === params.shopSlug) ?? null;
-    }
-    if (!shop) throw notFound();
-    return shop;
+    const shop = await preloadPublicQuery(context.queryClient, shopQuery(params.shopSlug));
+    if (shop === null) throw notFound();
+    return shop ?? null;
   },
   head: ({ loaderData }) => {
     const name = loaderData?.name ?? "Coffee shop";
@@ -43,11 +46,7 @@ export const Route = createFileRoute("/shops/$shopSlug")({
       ],
     };
   },
-  errorComponent: ({ error }) => (
-    <div role="alert" className="p-8 text-sm text-muted-foreground">
-      Could not load this shop: {error.message}
-    </div>
-  ),
+  errorComponent: DataLoadError,
   notFoundComponent: () => (
     <div className="p-8 text-sm text-muted-foreground">
       That shop isn't listed.{" "}
@@ -60,8 +59,21 @@ export const Route = createFileRoute("/shops/$shopSlug")({
 });
 
 function ShopDetail() {
-  const shop = Route.useLoaderData();
-  const state = openState(shop.hours);
+  const { shopSlug } = Route.useParams();
+  const query = useQuery({
+    ...shopQuery(shopSlug),
+    enabled: typeof window !== "undefined",
+    retry: 1,
+  });
+  if (query.isPending) return <DirectoryLoading />;
+  if (query.isError) return <DataLoadError retry={() => query.refetch()} />;
+  if (!query.data) throw notFound();
+  return <ShopDetailContent shop={query.data} />;
+}
+
+function ShopDetailContent({ shop }: { shop: Shop }) {
+  const now = useNow();
+  const state = openState(shop.hours, now);
   const directions = `https://www.google.com/maps/dir/?api=1&destination=${shop.lat},${shop.lng}`;
 
   return (
@@ -85,6 +97,7 @@ function ShopDetail() {
         </span>
 
         <ShopGallery
+          key={shop.id}
           shopId={shop.id}
           shopName={shop.name}
           legacyPath={shop.photo_path}

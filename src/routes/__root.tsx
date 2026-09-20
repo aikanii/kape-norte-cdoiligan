@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
 import {
   Outlet,
   Link,
@@ -82,7 +82,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "description", content: "Find coffee shops in Iligan City and Cagayan de Oro." },
       { name: "author", content: "Lovable" },
       { property: "og:title", content: "Kape Norte — Coffee Shop Finder" },
-      { property: "og:description", content: "Find coffee shops in Iligan City and Cagayan de Oro." },
+      {
+        property: "og:description",
+        content: "Find coffee shops in Iligan City and Cagayan de Oro.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Lovable" },
@@ -122,7 +125,6 @@ function RootShell({ children }: { children: ReactNode }) {
 }
 
 function RootComponent() {
-  const { queryClient } = Route.useRouteContext();
   const router = useRouter();
 
   useEffect(() => {
@@ -132,10 +134,5 @@ function RootComponent() {
     return unsub;
   }, [router]);
 
-  return (
-    <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
-    </QueryClientProvider>
-  );
+  return <Outlet />;
 }

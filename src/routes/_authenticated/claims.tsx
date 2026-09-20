@@ -1,7 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
-import { amIAdmin, decideClaim, listClaims, type ClaimRow } from "@/lib/owner.functions";
+import {
+  amIAdmin,
+  decideClaim,
+  listClaims,
+  listPendingShops,
+  publishShop,
+  type ClaimRow,
+} from "@/lib/owner.functions";
 
 export const Route = createFileRoute("/_authenticated/claims")({
   head: () => ({
@@ -19,6 +26,7 @@ export const Route = createFileRoute("/_authenticated/claims")({
 
 function ClaimsPage() {
   const [admin, setAdmin] = useState<boolean | null>(null);
+  const [pending, setPending] = useState<Awaited<ReturnType<typeof listPendingShops>>>([]);
   const [rows, setRows] = useState<ClaimRow[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -27,9 +35,12 @@ function ClaimsPage() {
     try {
       const isAdmin = await amIAdmin();
       setAdmin(isAdmin);
-      if (isAdmin) setRows(await listClaims());
-    } catch {
-      setAdmin(false);
+      if (isAdmin) {
+        setRows(await listClaims());
+        setPending(await listPendingShops());
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load requests");
     }
   }, []);
 
@@ -66,6 +77,45 @@ function ClaimsPage() {
           </p>
         )}
 
+        {admin && (
+          <section className="mt-8">
+            <h2 className="font-serif text-xl">Pending listings</h2>
+            {pending.length === 0 && (
+              <p className="mt-3 text-sm text-muted-foreground">No listings awaiting review.</p>
+            )}
+            <ul className="mt-4 space-y-3">
+              {pending.map((shop) => (
+                <li key={shop.id} className="glass-panel rounded-2xl p-5">
+                  <h3 className="font-medium">{shop.name}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {shop.address} · {shop.city}
+                  </p>
+                  <p className="my-3 text-sm">{shop.blurb}</p>
+                  <button
+                    disabled={busy !== null}
+                    className="rounded-xl bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-60"
+                    onClick={async () => {
+                      setBusy(shop.id);
+                      setError(null);
+                      try {
+                        await publishShop({ data: { shopId: shop.id } });
+                        setPending(await listPendingShops());
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : "Could not publish listing");
+                      } finally {
+                        setBusy(null);
+                      }
+                    }}
+                  >
+                    Publish listing
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <h2 className="mt-8 font-serif text-xl">Ownership claims</h2>
+          </section>
+        )}
+
         {admin && rows.length === 0 && (
           <p className="mt-4 text-sm text-muted-foreground">No requests yet.</p>
         )}
@@ -82,21 +132,19 @@ function ClaimsPage() {
                   {row.contact_name} · {row.contact_email}
                   {row.phone && ` · ${row.phone}`}
                 </p>
-                {row.message && (
-                  <p className="mt-2 text-sm text-muted-foreground">{row.message}</p>
-                )}
+                {row.message && <p className="mt-2 text-sm text-muted-foreground">{row.message}</p>}
                 <div className="mt-4 flex items-center gap-3">
                   {row.status === "pending" ? (
                     <>
                       <button
-                        disabled={busy === row.id}
+                        disabled={busy !== null}
                         onClick={() => void decide(row.id, true)}
                         className="rounded-xl bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
                       >
                         Approve
                       </button>
                       <button
-                        disabled={busy === row.id}
+                        disabled={busy !== null}
                         onClick={() => void decide(row.id, false)}
                         className="text-sm text-destructive hover:underline disabled:opacity-60"
                       >

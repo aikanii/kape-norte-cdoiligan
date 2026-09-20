@@ -23,7 +23,7 @@ SUPABASE_URL = "https://fcqfxuxgfhkeweugzpab.supabase.co"
 SUPABASE_PUBLISHABLE_KEY = "sb_publishable_FIFxTwE5JdCeVGOQmDs7Qw_hJCd-Y-H"
 
 # --- Secrets (do NOT put values here) ---
-# Optional - only needed for the admin dashboard and places-sync routes:
+# Optional - only needed for the places-sync route:
 #   npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 #   npx wrangler secret put PLACES_SYNC_TOKEN           (protects /api/public/sync-places)
 #

@@ -55,12 +55,25 @@ export async function signPaths(paths: string[]): Promise<Record<string, string>
 }
 
 export function photoStoragePath(userId: string, file: File) {
-  const ext = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+  const ext =
+    file.name
+      .split(".")
+      .pop()
+      ?.toLowerCase()
+      .replace(/[^a-z0-9]/g, "") || "jpg";
   return `${userId}/${crypto.randomUUID()}.${ext}`;
 }
 
+export function validatePhoto(file: File) {
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    throw new Error("Choose a JPG, PNG, or WebP image");
+  }
+  if (file.size === 0) throw new Error("The selected photo is empty");
+  if (file.size > MAX_PHOTO_BYTES) throw new Error("Each photo must be 5 MB or smaller");
+}
+
 export async function uploadShopPhoto(shopId: string, userId: string, file: File, sortOrder = 0) {
-  if (file.size > MAX_PHOTO_BYTES) throw new Error("Each photo must be smaller than 5 MB");
+  validatePhoto(file);
   const path = photoStoragePath(userId, file);
   const { error: upErr } = await supabase.storage
     .from(PHOTO_BUCKET)
@@ -69,12 +82,26 @@ export async function uploadShopPhoto(shopId: string, userId: string, file: File
   const { error } = await supabase
     .from("shop_photos")
     .insert({ shop_id: shopId, storage_path: path, uploaded_by: userId, sort_order: sortOrder });
-  if (error) throw new Error(error.message);
+  if (error) {
+    await supabase.storage.from(PHOTO_BUCKET).remove([path]);
+    throw new Error(error.message);
+  }
   return path;
 }
 
 export async function deleteShopPhoto(photo: ShopPhoto) {
-  const { error } = await supabase.from("shop_photos").delete().eq("id", photo.id);
+  const { error } = await supabase
+    .from("shop_photos")
+    .delete()
+    .eq("id", photo.id)
+    .select("id")
+    .single();
   if (error) throw new Error(error.message);
-  await supabase.storage.from(PHOTO_BUCKET).remove([photo.storage_path]);
+  const { error: storageError } = await supabase.storage
+    .from(PHOTO_BUCKET)
+    .remove([photo.storage_path]);
+  if (storageError)
+    throw new Error(
+      `Photo removed from the gallery, but file cleanup failed: ${storageError.message}`,
+    );
 }

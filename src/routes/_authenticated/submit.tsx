@@ -1,17 +1,17 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { z } from "zod";
+import { shopSchema as schema, normalizeHours } from "@/lib/shop-form";
 import { supabase } from "@/integrations/supabase/client";
 import { SiteHeader } from "@/components/SiteHeader";
-import { useSession } from "@/hooks/useSession";
 import {
   DAY_LABELS,
   WEEK_ORDER,
   defaultWeek,
+  inputTime,
   type DayHours,
   type DayKey,
 } from "@/lib/hours";
-import { PHOTO_BUCKET, photoStoragePath } from "@/lib/photos";
+import { uploadShopPhoto, validatePhoto } from "@/lib/photos";
 
 export const Route = createFileRoute("/_authenticated/submit")({
   head: () => ({
@@ -34,22 +34,11 @@ export const Route = createFileRoute("/_authenticated/submit")({
   component: SubmitPage,
 });
 
-const schema = z.object({
-  name: z.string().trim().min(2, "Enter the shop name").max(100),
-  city: z.string().trim().min(2).max(80),
-  area: z.string().trim().min(2, "Enter the barangay or area").max(80),
-  address: z.string().trim().min(5, "Enter the street address").max(200),
-  blurb: z.string().trim().max(400),
-  lat: z.number().min(-90).max(90),
-  lng: z.number().min(-180).max(180),
-  price_level: z.number().int().min(1).max(3),
-});
-
 const field =
   "h-11 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none focus:border-primary";
 
 function SubmitPage() {
-  const { user } = useSession();
+  const { user } = Route.useRouteContext();
   const navigate = useNavigate();
   const [form, setForm] = useState({
     name: "",
@@ -65,11 +54,14 @@ function SubmitPage() {
   const [hours, setHours] = useState<Record<DayKey, DayHours>>(defaultWeek());
   const [photos, setPhotos] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [photoWarning, setPhotoWarning] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-    setForm((f) => ({ ...f, [key]: e.target.value }));
+  const set =
+    (key: keyof typeof form) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+      setForm((f) => ({ ...f, [key]: e.target.value }));
 
   const setDay = (day: DayKey, index: 0 | 1, value: string) =>
     setHours((h) => {
@@ -88,72 +80,55 @@ function SubmitPage() {
 
     const parsed = schema.safeParse({
       ...form,
-      lat: Number(form.lat),
-      lng: Number(form.lng),
-      price_level: Number(form.price_level),
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Please check the form");
       return;
     }
-    if (photos.some((p) => p.size > 5 * 1024 * 1024)) {
-      setError("Each photo must be smaller than 5 MB");
-      return;
-    }
-
     setBusy(true);
-    const photoPaths: string[] = [];
-    for (const photo of photos.slice(0, 8)) {
-      const path = photoStoragePath(user.id, photo);
-      const { error: upErr } = await supabase.storage.from(PHOTO_BUCKET).upload(path, photo, {
-        contentType: photo.type || "image/jpeg",
-      });
-      if (upErr) {
-        setBusy(false);
-        setError(`Photo upload failed: ${upErr.message}`);
-        return;
+    try {
+      if (photos.length > 8) throw new Error("Choose up to 8 photos per listing");
+      photos.forEach(validatePhoto);
+      const normalizedHours = normalizeHours(hours);
+      const slug =
+        (parsed.data.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "")
+          .slice(0, 60) || "cafe") + `-${crypto.randomUUID().slice(0, 8)}`;
+      const { data: inserted, error: insErr } = await supabase
+        .from("shops")
+        .insert({
+          ...parsed.data,
+          slug,
+          hours: normalizedHours,
+          status: "pending",
+          submitted_by: user.id,
+          tags: form.tags
+            .split(",")
+            .map((t) => t.trim())
+            .filter(Boolean)
+            .slice(0, 8),
+        })
+        .select("id")
+        .single();
+      if (insErr) throw new Error(insErr.message);
+      // The listing is saved first. A photo failure must not invite a duplicate submission.
+      try {
+        for (const [order, photo] of photos.entries()) {
+          await uploadShopPhoto(inserted.id, user.id, photo, order);
+        }
+      } catch (err) {
+        setPhotoWarning(
+          `Your listing was saved, but some photos could not be uploaded. Add them from your owner dashboard. ${err instanceof Error ? err.message : ""}`,
+        );
       }
-      photoPaths.push(path);
-    }
-    const photoPath = photoPaths[0] ?? null;
-
-    const slug =
-      parsed.data.name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "")
-        .slice(0, 60) + `-${Math.random().toString(36).slice(2, 6)}`;
-
-    const { data: inserted, error: insErr } = await supabase.from("shops").insert({
-      ...parsed.data,
-      slug,
-      photo_path: photoPath,
-      hours,
-      status: "pending",
-      submitted_by: user.id,
-      tags: form.tags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean)
-        .slice(0, 8),
-    }).select("id").single();
-    if (insErr) {
+      setDone(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not submit your cafe");
+    } finally {
       setBusy(false);
-      setError(insErr.message);
-      return;
     }
-    if (inserted && photoPaths.length > 0) {
-      await supabase.from("shop_photos").insert(
-        photoPaths.map((path, i) => ({
-          shop_id: inserted.id,
-          storage_path: path,
-          uploaded_by: user.id,
-          sort_order: i,
-        })),
-      );
-    }
-    setBusy(false);
-    setDone(true);
   };
 
   if (done) {
@@ -165,11 +140,16 @@ function SubmitPage() {
           <p className="mt-3 text-sm text-muted-foreground">
             Your cafe was submitted and is waiting for review before it appears on the map.
           </p>
+          {photoWarning && (
+            <p role="alert" className="mt-4 text-sm text-destructive">
+              {photoWarning}
+            </p>
+          )}
           <button
-            onClick={() => navigate({ to: "/" })}
+            onClick={() => navigate({ to: "/owner" })}
             className="mt-6 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
-            Back to the directory
+            Go to your owner dashboard
           </button>
         </main>
       </div>
@@ -241,6 +221,7 @@ function SubmitPage() {
                 <option value="1">₱ budget</option>
                 <option value="2">₱₱ mid</option>
                 <option value="3">₱₱₱ premium</option>
+                <option value="4">₱₱₱₱ luxury</option>
               </select>
             </label>
           </div>
@@ -260,7 +241,7 @@ function SubmitPage() {
             <span className="text-sm text-foreground">Photos (optional, max 5 MB each)</span>
             <input
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp"
               multiple
               onChange={(e) => setPhotos(Array.from(e.target.files ?? []))}
               className="text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-muted file:px-3 file:py-2 file:text-sm file:text-foreground"
@@ -269,6 +250,9 @@ function SubmitPage() {
 
           <fieldset className="rounded-2xl border border-border bg-card p-4">
             <legend className="px-1 text-sm font-medium text-foreground">Opening hours</legend>
+            <p className="text-xs text-muted-foreground">
+              A closing time before opening means the next day. Matching times mean 24 hours.
+            </p>
             <div className="mt-2 flex flex-col gap-2">
               {WEEK_ORDER.map((day) => {
                 const value = hours[day];

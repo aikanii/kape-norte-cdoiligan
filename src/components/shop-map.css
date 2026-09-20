@@ -1,0 +1,50 @@
+.cafe-map-pin {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.cafe-map-dot {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 1px 5px rgb(0 0 0 / 35%);
+  transition: width 120ms, height 120ms;
+}
+
+.cafe-map-pin[data-active="true"] {
+  z-index: 2;
+}
+
+.cafe-map-pin[data-active="true"] .cafe-map-dot,
+.cafe-map-pin:hover .cafe-map-dot {
+  width: 26px;
+  height: 26px;
+}
+
+.cafe-map-pin:focus-visible {
+  outline: 2px solid #2f7d4f;
+  outline-offset: 2px;
+  border-radius: 50%;
+}
+
+.cafe-map-tooltip {
+  color: #292524;
+  font: 12px/1.5 system-ui, sans-serif;
+}
+
+.cafe-map-tooltip img {
+  display: block;
+  width: 160px;
+  height: 90px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  object-fit: cover;
+}

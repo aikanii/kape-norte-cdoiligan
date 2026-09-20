@@ -6,7 +6,7 @@ bundle. Follow these steps once, then each future deploy is two commands.
 ## 0. One-time prerequisites
 
 - A free Cloudflare account: https://dash.cloudflare.com
-- Node.js 20+ installed locally
+- Node.js 22.12+ installed locally
 - This project on your machine:
   - In Lovable: **GitHub → Connect** to push the project to a GitHub repo, then
     `git clone` it, **or** download the code and unzip it.
@@ -25,7 +25,7 @@ This opens a browser window to authorize the Wrangler CLI.
 ## 2. Install and build
 
 ```bash
-npm install
+npm ci
 npm run build
 ```
 
@@ -44,7 +44,7 @@ npx wrangler secret put SUPABASE_PUBLISHABLE_KEY
 Optional, only if you use them:
 
 ```bash
-npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY   # admin aggregations + places sync
+npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY   # places sync only
 npx wrangler secret put PLACES_SYNC_TOKEN           # protects /api/public/sync-places
 ```
 
@@ -86,3 +86,7 @@ npx wrangler deploy
   Worker talks to them over HTTPS, so nothing needs to migrate.
 - The Lovable-hosted URL keeps working independently; you can switch back to it
   any time by publishing from Lovable.
+
+## Database and authentication
+
+Before deploying these fixes, apply the migration and auth URL configuration in [FIXES.md](FIXES.md). The new admin RPCs and grants are required for claim decisions and listing publication. Keep public credentials in `wrangler.toml` synchronized with the browser build environment; do not upload a duplicate secret with the same name as an existing `[vars]` entry.

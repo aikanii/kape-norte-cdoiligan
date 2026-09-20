@@ -35,10 +35,22 @@ export type Shop = {
   hours: WeekHours;
 };
 
-const toMinutes = (value: string) => {
+export const toMinutes = (value: string) => {
   const [h, m] = value.split(":");
   return Number(h) * 60 + Number(m ?? 0);
 };
+
+/** HTML time inputs cannot represent extended closing times such as 27:00. */
+export function inputTime(value: string) {
+  const minutes = toMinutes(value) % 1440;
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+function closingMinutes(range: NonNullable<DayHours>) {
+  const start = toMinutes(range[0]);
+  const end = toMinutes(range[1]);
+  return end <= start ? end + 1440 : end;
+}
 
 export function formatTime(value: string) {
   const total = toMinutes(value) % (24 * 60);
@@ -90,7 +102,7 @@ export function openState(hours: WeekHours, now: Date = new Date()): OpenState {
 
   // A shop that closed after midnight is still open in the early hours.
   if (yesterday) {
-    const close = toMinutes(yesterday[1]);
+    const close = closingMinutes(yesterday);
     if (close > 24 * 60 && minutes < close - 24 * 60) {
       return { open: true, label: `Open until ${formatTime(yesterday[1])}`, range: yesterday };
     }
@@ -99,7 +111,7 @@ export function openState(hours: WeekHours, now: Date = new Date()): OpenState {
   if (!today) return { open: false, label: "Closed today", range: null };
 
   const start = toMinutes(today[0]);
-  const end = toMinutes(today[1]);
+  const end = closingMinutes(today);
   if (minutes < start) {
     return { open: false, label: `Opens ${formatTime(today[0])}`, range: today };
   }

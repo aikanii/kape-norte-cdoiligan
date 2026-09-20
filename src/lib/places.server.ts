@@ -18,7 +18,11 @@ const FIELD_MASK = [
 const SEARCH_TERMS = ["coffee shop", "cafe", "specialty coffee", "coffee roaster"];
 const CITIES = [
   { label: "Iligan City", query: "Iligan City, Philippines", match: "Iligan" },
-  { label: "Cagayan de Oro", query: "Cagayan de Oro City, Philippines", match: "Cagayan de Oro" },
+  {
+    label: "Cagayan de Oro City",
+    query: "Cagayan de Oro City, Philippines",
+    match: "Cagayan de Oro",
+  },
 ];
 
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
@@ -92,7 +96,9 @@ async function resolvePhoto(photo: PlacePhoto) {
   if (response.status === 403) {
     const body = await response.text();
     console.error(`Places photo denied [403]: ${body}`);
-    throw new Error("Google Maps denied the photo request. Check the server key restrictions and Places API access.");
+    throw new Error(
+      "Google Maps denied the photo request. Check the server key restrictions and Places API access.",
+    );
   }
   if (!response.ok) {
     const body = await response.text();
@@ -118,7 +124,9 @@ async function placePhoto(placeId: string) {
   if (response.status === 403) {
     const body = await response.text();
     console.error(`Place photo details denied [403]: ${body}`);
-    throw new Error("Google Maps denied the photo request. Check the server key restrictions and Places API access.");
+    throw new Error(
+      "Google Maps denied the photo request. Check the server key restrictions and Places API access.",
+    );
   }
   if (!response.ok) {
     const body = await response.text();
@@ -181,7 +189,7 @@ function slugify(value: string) {
 const pad = (minutes: number) =>
   `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 
-function toWeekHours(place: Place) {
+export function toWeekHours(place: Place) {
   const week: Record<string, [string, string] | null> = {};
   for (const key of DAY_KEYS) week[key] = null;
   for (const period of place.regularOpeningHours?.periods ?? []) {
@@ -189,8 +197,8 @@ function toWeekHours(place: Place) {
     if (!open) continue;
     const key = DAY_KEYS[open.day % 7]!;
     if (!period.close) {
-      week[key] = ["00:00", "24:00"];
-      continue;
+      for (const day of DAY_KEYS) week[day] = ["00:00", "24:00"];
+      return week;
     }
     const start = open.hour * 60 + (open.minute ?? 0);
     let end = period.close.hour * 60 + (period.close.minute ?? 0);

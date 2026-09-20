@@ -10,8 +10,8 @@ The application also gives the local coffee community a place to contribute. Sig
 
 ## Requirements
 
-- Node.js 20 or later
-- Bun 1.4 or later
+- Node.js 22.12 or later
+- npm (included with Node.js)
 - A Supabase project
 
 ## Development
@@ -19,8 +19,9 @@ The application also gives the local coffee community a place to contribute. Sig
 Install dependencies and start the Vite development server:
 
 ```bash
-bun install
-bun run dev
+npm ci
+cp .env.example .env  # then fill in your Supabase project values
+npm run dev
 ```
 
 Create a `.env` file in the project root with the Supabase and Google Maps values required by your environment. Never commit secrets.
@@ -28,10 +29,13 @@ Create a `.env` file in the project root with the Supabase and Google Maps value
 ## Commands
 
 ```bash
-bun run dev       # Start the development server
-bun run build     # Create the production Cloudflare build
-bun run preview   # Preview the production build locally
-bun run lint      # Run ESLint
+npm run dev       # Start the development server
+npm run build     # Create the production Cloudflare build
+npm run preview   # Preview the production build locally
+npm run lint      # Run ESLint
+npm run typecheck # Check TypeScript
+npm test          # Unit, component, and database-policy tests
+npm run test:e2e  # Browser tests (install Playwright Chromium first)
 ```
 
 ## Deployment
@@ -39,7 +43,7 @@ bun run lint      # Run ESLint
 The application is built for Cloudflare Workers with Nitro and Wrangler.
 
 ```bash
-bun run build
+npm run build
 npx wrangler deploy
 ```
 
@@ -53,3 +57,11 @@ Configure the required runtime secrets with Wrangler before deploying. See [DEPL
 - Tailwind CSS
 - Supabase
 - Cloudflare Workers
+
+## Database setup and regression tests
+
+See [FIXES.md](FIXES.md) for the required database migration, auth configuration, automated test commands, and verification limitations. Use `npm ci` and `package-lock.json` for reproducible installs.
+
+## Map tiles
+
+Maps use OpenFreeMap (OpenStreetMap data) rendered with MapLibre GL. No map API key is needed. The map worker is bundled locally; the browser must be able to reach `tiles.openfreemap.org`. Network or WebGL failures show a retry action and an external-map link while the café list remains usable.

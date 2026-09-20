@@ -1,28 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
-import { createClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export const recordPageView = createServerFn({ method: "POST" })
-  .inputValidator((input: { path: string }) => {
+  .validator((input: { path: string }) => {
     const path = typeof input?.path === "string" ? input.path.slice(0, 200) : "/";
     return { path: path.startsWith("/") ? path : "/" };
   })
   .handler(async ({ data }) => {
-    const key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
-    const supabasePublic = createClient(process.env["SUPABASE_URL"]!, key, {
-      auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
-      global: {
-        fetch: (input, init) => {
-          const h = new Headers(init?.headers);
-          if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`) {
-            h.delete("Authorization");
-          }
-          h.set("apikey", key);
-          return fetch(input, { ...init, headers: h });
-        },
-      },
-    });
-    await supabasePublic.from("page_views").insert({ path: data.path });
+    const { publicClient } = await import("@/integrations/supabase/public.server");
+    const { error } = await publicClient().from("page_views").insert({ path: data.path });
+    if (error) throw new Error(error.message);
     return { ok: true };
   });
 
@@ -47,7 +34,8 @@ export const getAdminStats = createServerFn({ method: "GET" })
     });
     if (isAdmin !== true) throw new Error("Forbidden");
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // Admin read policies keep analytics scoped to the verified user; no service key needed.
+    const supabaseAdmin = context.supabase;
 
     const now = Date.now();
     const dayMs = 24 * 60 * 60 * 1000;
@@ -91,6 +79,20 @@ export const getAdminStats = createServerFn({ method: "GET" })
       supabaseAdmin.from("profiles").select("id, created_at"),
     ]);
 
+    for (const result of [
+      viewsTotal,
+      views30,
+      viewRows30,
+      reviewRows,
+      reviews30,
+      shopRows,
+      photosTotal,
+      claimRows,
+      profileRows,
+    ]) {
+      if (result.error) throw new Error(result.error.message);
+    }
+
     const views = viewRows30.data ?? [];
     const todayKey = new Date(now).toISOString().slice(0, 10);
 
@@ -119,7 +121,7 @@ export const getAdminStats = createServerFn({ method: "GET" })
     const ratingSum = reviews.reduce((sum, r) => sum + (r.rating ?? 0), 0);
     const shopMap = new Map<string, { name: string; city: string; count: number; sum: number }>();
     for (const r of reviews) {
-      const shop = (r as any).shops;
+      const shop = r.shops;
       const name = shop?.name ?? "Unknown cafe";
       const city = shop?.city ?? "";
       const entry = shopMap.get(name) ?? { name, city, count: 0, sum: 0 };
@@ -128,7 +130,12 @@ export const getAdminStats = createServerFn({ method: "GET" })
       shopMap.set(name, entry);
     }
     const topReviewedShops = [...shopMap.values()]
-      .map((s) => ({ name: s.name, city: s.city, count: s.count, average: Math.round((s.sum / s.count) * 10) / 10 }))
+      .map((s) => ({
+        name: s.name,
+        city: s.city,
+        count: s.count,
+        average: Math.round((s.sum / s.count) * 10) / 10,
+      }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 8);
 

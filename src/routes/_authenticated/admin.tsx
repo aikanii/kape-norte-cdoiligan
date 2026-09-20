@@ -1,14 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import {
-  Eye,
-  MessageSquareHeart,
-  Store,
-  Camera,
-  ClipboardList,
-  Users,
-  Star,
-} from "lucide-react";
+import { Eye, MessageSquareHeart, Store, Camera, ClipboardList, Users, Star } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { amIAdmin } from "@/lib/owner.functions";
 import { getAdminStats, type AdminStats } from "@/lib/admin.functions";
@@ -19,7 +11,10 @@ export const Route = createFileRoute("/_authenticated/admin")({
       { title: "Site analytics — Kape Norte" },
       { name: "description", content: "Visitor, review and listing analytics for Kape Norte." },
       { property: "og:title", content: "Site analytics — Kape Norte" },
-      { property: "og:description", content: "Visitor, review and listing analytics for Kape Norte." },
+      {
+        property: "og:description",
+        content: "Visitor, review and listing analytics for Kape Norte.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -60,8 +55,8 @@ function AdminPage() {
       const isAdmin = await amIAdmin();
       setAdmin(isAdmin);
       if (isAdmin) setStats(await getAdminStats());
-    } catch {
-      setAdmin(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load analytics");
     }
   }, []);
 
@@ -150,17 +145,22 @@ function AdminPage() {
                 <h2 className="font-serif text-lg font-semibold text-foreground">
                   Visits, last 14 days
                 </h2>
-                <div className="mt-4 flex h-32 gap-1.5" role="img" aria-label="Bar chart of daily visits over the last 14 days">
+                <div
+                  className="mt-4 flex h-32 gap-1.5"
+                  role="img"
+                  aria-label="Bar chart of daily visits over the last 14 days"
+                >
                   {stats.dailyViews.map((d) => (
-                    <div key={d.date} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
+                    <div
+                      key={d.date}
+                      className="flex h-full flex-1 flex-col items-center justify-end gap-1"
+                    >
                       <div
                         className="w-full rounded-t-md bg-primary/80"
                         style={{ height: `${Math.max(3, (d.count / maxDaily) * 100)}%` }}
                         title={`${d.date}: ${d.count} visits`}
                       />
-                      <span className="text-[9px] text-muted-foreground">
-                        {d.date.slice(8)}
-                      </span>
+                      <span className="text-[9px] text-muted-foreground">{d.date.slice(8)}</span>
                     </div>
                   ))}
                 </div>
@@ -175,10 +175,7 @@ function AdminPage() {
                     <li className="text-sm text-muted-foreground">No visits recorded yet.</li>
                   )}
                   {stats.topPages.map((p) => (
-                    <li
-                      key={p.path}
-                      className="flex items-center justify-between gap-3 text-sm"
-                    >
+                    <li key={p.path} className="flex items-center justify-between gap-3 text-sm">
                       <span className="truncate text-foreground">{p.path}</span>
                       <span className="shrink-0 text-muted-foreground">{p.count}</span>
                     </li>
