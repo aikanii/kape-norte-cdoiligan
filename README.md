@@ -1,6 +1,3 @@
-
-=======
->>>>>>> d69ab9cbac80d5d56ed414a71fab1b3a227786e9
 <div align="center">
 
 # ☕ Kape Norte
