@@ -1,586 +1,604 @@
-# Kape Norte
 
-**A community coffee-shop directory for Iligan City and Cagayan de Oro, Philippines.**
-
-Discover cafés by location, atmosphere, price, and opening hours. Read community reviews, explore an interactive map, and manage owner-submitted listings through a moderated publishing workflow.
-
-**Stack:** React 19 · TypeScript · TanStack Start / Router / Query · Tailwind CSS 4 · Supabase · MapLibre GL · Cloudflare Workers
-
-[Run locally](#local-development) · [Testing](#testing) · [Deployment](#cicd) · [Screenshots](#screenshots)
-
-## Contents
-
-<<<<<<< HEAD
-- Node.js 22.12 or later
-- npm (included with Node.js)
-- A Supabase project
 =======
-- [Architecture diagram](#architecture-diagram)
-- [System workflow](#system-workflow)
-- [Feature list](#feature-list)
-- [API documentation](#api-documentation)
-- [Database schema](#database-schema)
-- [AI architecture](#ai-architecture)
-- [Security considerations](#security-considerations)
-- [Testing](#testing)
-- [Docker setup](#docker-setup)
-- [CI/CD](#cicd)
-- [Screenshots](#screenshots)
-- [Demo](#demo)
 >>>>>>> d69ab9cbac80d5d56ed414a71fab1b3a227786e9
+<div align="center">
 
-## Architecture diagram
+# ☕ Kape Norte
+
+**A community-maintained directory of specialty coffee shops in Iligan City and Cagayan de Oro, Northern Mindanao, Philippines.**
+
+Browse an interactive map, see which cafés are open _right now_ in Manila time, read and write reviews, upload photos, and let café owners claim and manage their own listings through a moderated workflow.
+
+[![React 19](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![TanStack Start](https://img.shields.io/badge/TanStack-Start%20%2B%20Router%20%2B%20Query-FF4154?logo=reactquery&logoColor=white)](https://tanstack.com/start)
+[![Tailwind CSS 4](https://img.shields.io/badge/Tailwind%20CSS-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+[![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%C2%B7%20Auth%20%C2%B7%20Storage-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com)
+[![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com)
+
+[Why it exists](#why-kape-norte-exists) · [Features](#features) · [Architecture](#architecture) · [Getting started](#getting-started) · [Testing](#testing) · [Deployment](#deployment) · [Contributing](#contributing)
+
+</div>
+
+---
+
+## Table of contents
+
+- [Why Kape Norte exists](#why-kape-norte-exists)
+- [Features](#features)
+- [Screenshots](#screenshots)
+- [Tech stack](#tech-stack)
+- [Architecture](#architecture)
+- [Project structure](#project-structure)
+- [Getting started](#getting-started)
+- [Available scripts](#available-scripts)
+- [Environment variables](#environment-variables)
+- [Data model](#data-model)
+- [Application routes](#application-routes)
+- [Server functions and HTTP endpoints](#server-functions-and-http-endpoints)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Security model](#security-model)
+- [Known limitations and roadmap](#known-limitations-and-roadmap)
+- [Contributing](#contributing)
+- [Acknowledgements and attribution](#acknowledgements-and-attribution)
+- [License](#license)
+
+---
+
+## Why Kape Norte exists
+
+Iligan City and Cagayan de Oro have a lively, fast-growing café scene, but discovering it is harder than it should be:
+
+- **Listings are scattered.** Cafés live across map apps, social media pages, and word of mouth. There is no single, local-first place that answers _"Where can I get good coffee near Tibanga right now?"_
+- **Opening hours are unreliable.** Many local cafés open in the afternoon and close well past midnight. Generic listings handle "closes at 3 AM" badly, and rarely tell you whether a shop is open _at this moment_ in Philippine time.
+- **The community has no voice.** Reviews and photos from regulars get lost, and café owners have no lightweight way to keep their own details accurate without going through a large platform.
+
+**Kape Norte** — _kape_ is Filipino/Cebuano for coffee, _norte_ points to Northern Mindanao — was built to be that place. Its design goals, all reflected in the codebase, are:
+
+| Goal                                           | How the project delivers it                                                                                                                                                                                                                                         |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Local-first discovery**                      | The directory is scoped to two cities. Filter by city, barangay/area, "vibe" tags, and price level. The **Open now** filter and every status label are computed in `Asia/Manila`, including overnight schedules (e.g. `16:00 → 27:00`).                             |
+| **Community-maintained data**                  | Any signed-in member can review a café (one review per person per shop), upload photos, and submit a new café. Owners can claim listings and edit their details. Administrators publish pending listings and decide ownership claims.                               |
+| **Trust enforced in the database, not the UI** | PostgreSQL row-level security, column-level grants, and `SECURITY DEFINER` RPCs make it impossible for an owner to self-publish, transfer a listing, or approve their own claim — regardless of what the frontend sends.                                            |
+| **Cheap and independent to operate**           | The basemap uses [OpenFreeMap](https://openfreemap.org) vector tiles rendered by MapLibre GL — **no map API key required**. The app runs on Cloudflare Workers and a Supabase project. Google Places is an _optional_ bulk-import source, not a runtime dependency. |
+| **Resilient by default**                       | Public pages render on the server but fall back to direct browser reads if the SSR host cannot reach Supabase. Map failures (blocked tiles, no WebGL) degrade to a **Retry** button and an external-map link instead of breaking the page.                          |
+
+## Features
+
+### For visitors (no account needed)
+
+- **Directory (`/`)** – Searchable, filterable list of published cafés with cover photos, price level (`₱`–`₱₱₱₱`), tags, and a live open/closed label that refreshes every minute.
+- **Interactive map** – MapLibre GL map with colour-coded pins (green = open, brown = closed), hover/focus popups with a cover photo, click-to-select syncing with the list, zoom controls, and automatic recentering per city.
+- **Café pages (`/shops/:slug`)** – Address, "Get directions" link, weekly hours in 12-hour format, photo gallery, tags, average rating, and reviews. Unknown slugs return a real 404.
+- **Coffee guide (`/guide`)** – A per-city shortlist of up to six cafés ranked by a transparent, deterministic score (see [ranking](#coffee-guide-ranking)), curated must-try drinks for each city, and a price/vibe/today's-hours comparison table.
+- **Accessible and mobile-friendly** – Labelled controls, keyboard-focusable map pins, and a collapsible mobile menu.
+
+### For members (email/password or Google sign-in)
+
+- **Reviews** – Rate a café 1–5 stars with a comment (up to 1,000 characters). One review per user per café, editable and deletable.
+- **Photos** – Upload JPG/PNG/WebP images up to 5 MiB to a café's gallery. Photos are served through one-hour signed URLs; uploaders can delete their own photos.
+- **Submit a café (`/submit`)** – Validated form (name, city, area, address, blurb, coordinates, price level, weekly hours with overnight support, optional photos). New listings are saved as **pending** until an admin publishes them. If a photo upload fails, the café is not lost or duplicated.
+
+### For café owners
+
+- **Owner dashboard (`/owner`)** – See your submitted/owned listings and the status of your ownership claims.
+- **Claim a listing** – Request ownership of an existing café with your contact details. One pending claim per user per café.
+- **Manage a listing (`/manage/:shopId`)** – Edit name, area, address, blurb, price level, tags, coordinates, opening hours, and photos. Owners **cannot** change publication status or ownership — the database forbids it.
+
+### For administrators
+
+- **Review listings (`/claims`)** – Publish pending cafés and approve/reject ownership claims. Approving a claim atomically assigns the owner and rejects competing pending claims for the same café.
+- **Analytics (`/admin`)** – Page views (today / 7 d / 30 d / total, 14-day chart, top pages), review counts and average rating, most-reviewed cafés, listing/photo/claim counts, and sign-ups.
+
+### For operators
+
+- **Google Places import (`POST /api/public/sync-places`)** – A token-protected endpoint that searches Google Places for coffee shops in both cities, upserts them as published listings, and backfills cover photos — while preserving existing slugs and never overwriting owner-managed listings.
+
+> **Scope note.** The current codebase contains **no AI/semantic search, geolocation tracking, personalised recommendations, or push notifications**. The coffee guide's ranking is a plain arithmetic formula. See [Known limitations and roadmap](#known-limitations-and-roadmap).
+
+## Screenshots
+
+Captured from the isolated test fixtures, so café names and counts are **sample data**.
+
+| Directory and search controls                                                              | Coffee guide                                                                                       |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| ![Directory hero with search, city, area and vibe filters](docs/screenshots/directory.png) | ![Coffee guide with top picks, must-try drinks and a comparison table](docs/screenshots/guide.png) |
+
+## Tech stack
+
+| Layer              | Technology                                                                                                                                                                               | Notes                                                                                                  |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| UI                 | [React 19](https://react.dev), [Tailwind CSS 4](https://tailwindcss.com), [shadcn/ui](https://ui.shadcn.com) on [Radix UI](https://www.radix-ui.com), [lucide-react](https://lucide.dev) | Dark, editorial design system defined with `oklch` CSS variables in [`src/styles.css`](src/styles.css) |
+| Framework          | [TanStack Start](https://tanstack.com/start) 1.168, [TanStack Router](https://tanstack.com/router) 1.170, [TanStack Query](https://tanstack.com/query) 5                                 | File-based routing, SSR, typed server functions, SSR query-cache hydration                             |
+| Build              | [Vite 8](https://vite.dev), [Nitro 3](https://nitro.build), `@lovable.dev/vite-tanstack-config`                                                                                          | Nitro emits a Cloudflare Workers bundle in `.output/`                                                  |
+| Maps               | [MapLibre GL 6](https://maplibre.org), [OpenFreeMap](https://openfreemap.org) Positron style                                                                                             | Web worker bundled and served from the same origin; no CDN scripts                                     |
+| Backend            | [Supabase](https://supabase.com) — PostgreSQL, Auth, Storage                                                                                                                             | RLS, RPCs, triggers; `@supabase/supabase-js` 2.x                                                       |
+| Validation & forms | [Zod](https://zod.dev) 3, [react-hook-form](https://react-hook-form.com)                                                                                                                 | Shared schemas for forms and server-function inputs                                                    |
+| Hosting            | [Cloudflare Workers](https://workers.cloudflare.com) via Wrangler                                                                                                                        | Static assets binding + SSR Worker                                                                     |
+| Testing            | [Vitest 5](https://vitest.dev), [Testing Library](https://testing-library.com), [PGlite](https://pglite.dev), [Playwright](https://playwright.dev)                                       | Unit, component, real-PostgreSQL policy tests, and browser E2E                                         |
+| Quality            | TypeScript 5.8 (strict), ESLint 9 flat config, Prettier 3                                                                                                                                | `npm run typecheck`, `npm run lint`, `npm run format`                                                  |
+
+The project was scaffolded from Lovable's TanStack Start template; a few integration files under `src/integrations/` are marked _auto-generated_ and should be replaced rather than hand-edited.
+
+## Architecture
 
 ```mermaid
 flowchart TB
-    Visitor[Visitor / member / café owner / administrator]
+    User([Visitor / member / owner / admin])
 
-<<<<<<< HEAD
-```bash
-npm ci
-cp .env.example .env  # then fill in your Supabase project values
-npm run dev
-=======
-    subgraph Browser[Browser application]
-        UI[React pages and TanStack Router]
-        Cache[TanStack Query cache]
-        SDK[Supabase browser client]
-        Map[MapLibre GL and bundled worker]
+    subgraph Browser["Browser"]
+        UI["React pages<br/>(TanStack Router)"]
+        Cache["TanStack Query cache"]
+        SDK["Supabase JS client<br/>(user session)"]
+        Map["MapLibre GL<br/>+ bundled worker"]
         UI --> Cache
         UI --> SDK
         UI --> Map
     end
 
-    subgraph Worker[Cloudflare Worker]
-        Start[TanStack Start SSR and server functions]
-        Auth[Bearer-token validation and admin checks]
-        Sync[Token-protected Places import]
-        Start --> Auth
+    subgraph Worker["Cloudflare Worker (TanStack Start / Nitro)"]
+        SSR["SSR + route loaders"]
+        Fns["Server functions<br/>(CSRF + bearer-token middleware)"]
+        Sync["POST /api/public/sync-places<br/>(x-sync-token)"]
     end
 
-    subgraph Supabase[Supabase services]
-        Identity[Auth: email/password and Google OAuth]
-        DB[(PostgreSQL: RLS and database RPCs)]
-        Storage[Photo storage and signed URLs]
+    subgraph Supabase["Supabase project"]
+        Auth["Auth<br/>email/password · Google OAuth"]
+        DB[("PostgreSQL<br/>RLS · grants · RPCs")]
+        Storage["Storage bucket<br/>shop-photos (private, signed URLs)"]
     end
 
-    Visitor --> UI
-    UI <-->|HTML and server-function RPCs| Start
-    Start -->|Anonymous SSR reads| DB
-    Cache -->|Direct public reads and SSR-failure recovery| SDK
-    SDK --> Identity
-    SDK -->|User-scoped CRUD| DB
+    User --> UI
+    UI <-->|"HTML · server-function RPCs"| SSR
+    SSR -->|"anonymous public reads"| DB
+    Cache -.->|"direct reads · SSR-failure recovery"| SDK
+    SDK --> Auth
+    SDK -->|"user-scoped CRUD under RLS"| DB
     SDK --> Storage
-    Auth --> Identity
-    Auth -->|Verified-user queries| DB
-    Map --> Tiles[OpenFreeMap vector maps]
-    Operator[Trusted operator] -->|POST with sync token| Sync
-    Sync --> Gateway[Lovable Google Maps connector]
-    Gateway --> Places[Google Places]
-    Sync -->|Service-role import| DB
->>>>>>> d69ab9cbac80d5d56ed414a71fab1b3a227786e9
+    Fns -->|"validated user JWT · admin role check"| DB
+    Map --> Tiles["tiles.openfreemap.org"]
+    Operator([Trusted operator]) --> Sync
+    Sync --> Gateway["Lovable Google Maps connector<br/>→ Google Places API"]
+    Sync -->|"service-role upsert"| DB
 ```
 
-### Design decisions
+### How a request flows
 
-- **SSR with browser recovery:** public pages preload data on the server and hydrate the query cache. If the SSR host cannot reach Supabase, the browser retries directly rather than inheriting a permanent error or a fabricated empty directory.
-- **Database-enforced authorization:** browser writes use the signed-in user's identity. PostgreSQL row-level security (RLS), column grants, and role-checked RPCs enforce access independently of the UI.
-- **Separate map and listing providers:** OpenFreeMap supplies the basemap; Google Places is an optional listing-import source. Viewing maps does not require a Google Maps key.
-- **Edge deployment:** Nitro emits the Worker bundle and static assets into `.output/server/` and `.output/public/`.
+1. **Public pages** (`/`, `/guide`, `/shops/:slug`) run a route loader that calls a typed query function ([`src/lib/shops.functions.ts`](src/lib/shops.functions.ts)). On the server it uses an anonymous Supabase client; in the browser it uses the session-aware client. Results hydrate the TanStack Query cache. If the SSR fetch fails, [`preloadPublicQuery`](src/lib/public-query.ts) discards the error instead of hydrating it, and the browser refetches directly.
+2. **Authenticated pages** live under the `_authenticated` layout, are client-rendered (`ssr: false`), and redirect to `/auth?redirect=…` when no session exists. Redirect targets are restricted to same-origin paths.
+3. **Member writes** (reviews, photos, submissions, owner edits, claims) go **directly from the browser to Supabase** with the user's JWT. PostgreSQL RLS is the authorization layer.
+4. **Admin operations** are TanStack Start **server functions**. A global client middleware attaches the user's access token; the server middleware validates the token with `auth.getClaims()`, then the handler checks `has_role(uid, 'admin')` and calls a `SECURITY DEFINER` RPC (`publish_shop`, `review_shop_claim`) that re-checks the role inside the database.
+5. **Page-view analytics** are recorded by a public server function on every route resolution and read only by admins.
+6. **Bulk import** is a standalone HTTP route guarded by a shared secret header; it is the only code path that uses the service-role key, and it never ships to the client bundle.
 
-<<<<<<< HEAD
-```bash
-npm run dev       # Start the development server
-npm run build     # Create the production Cloudflare build
-npm run preview   # Preview the production build locally
-npm run lint      # Run ESLint
-npm run typecheck # Check TypeScript
-npm test          # Unit, component, and database-policy tests
-npm run test:e2e  # Browser tests (install Playwright Chromium first)
-=======
-### Repository layout
+### Key design decisions
+
+- **Database-enforced authorization.** The browser never needs — and never receives — privileged credentials. Owners get column-level `UPDATE` grants that exclude `status` and `submitted_by`.
+- **Two Supabase server clients, on purpose.** [`public.server.ts`](src/integrations/supabase/public.server.ts) (publishable key, anonymous SSR reads) and [`client.server.ts`](src/integrations/supabase/client.server.ts) (service role, import only). They are never mixed.
+- **Extended closing times.** Hours are stored per weekday as `["HH:MM", "HH:MM"]` where the closing time may exceed `24:00` (`"27:00"` = 3 AM next day). [`src/lib/hours.ts`](src/lib/hours.ts) computes open state in Manila time and correctly treats "closed after midnight" as still open in the early hours.
+- **Map and listing providers are decoupled.** OpenFreeMap draws the map; Google Places (optional) supplies listing data. You can run the whole app without a Google key.
+- **Custom SSR entry.** [`src/server.ts`](src/server.ts) wraps the TanStack Start server entry so catastrophic SSR errors render a friendly HTML error page instead of a raw JSON 500.
+
+## Project structure
 
 ```text
-src/
-├── components/           # Map, galleries, reviews, navigation, shared UI
-├── hooks/                # Session, cover-photo, clock and responsive hooks
-├── integrations/
-│   └── supabase/         # Clients, auth middleware and database types
-├── lib/                  # Public queries, server functions and domain helpers
-├── routes/               # File-based pages and HTTP route handlers
-├── router.tsx            # Router and SSR query-cache integration
-└── start.ts              # Server-function auth attachment and CSRF middleware
-supabase/migrations/      # Tables, indexes, policies, triggers and RPCs
-tests/                    # Unit, component, SQL-policy and browser tests
-docs/screenshots/         # Documented sample-data UI captures
->>>>>>> d69ab9cbac80d5d56ed414a71fab1b3a227786e9
+.
+├── src/
+│   ├── routes/                    # File-based routes (see src/routes/README.md)
+│   │   ├── __root.tsx             # HTML shell, <head> meta, 404/error boundaries, page-view tracking
+│   │   ├── index.tsx              # Directory + map
+│   │   ├── guide.tsx              # Coffee guide and ranking
+│   │   ├── shops.$shopSlug.tsx    # Café detail page
+│   │   ├── auth.tsx, owners.tsx   # Member / owner sign-in and sign-up
+│   │   ├── _authenticated/        # Session-guarded layout: submit, owner, manage.$shopId, claims, admin
+│   │   └── api/public/sync-places.ts   # Token-protected Google Places import
+│   ├── components/
+│   │   ├── ShopMap.tsx            # MapLibre map with pins, popups, retry/fallback
+│   │   ├── ShopGallery.tsx        # Photo gallery, upload and delete
+│   │   ├── Reviews.tsx            # Review list and editor
+│   │   ├── SiteHeader.tsx         # Navigation, auth state, admin links
+│   │   └── ui/                    # shadcn/ui primitives
+│   ├── hooks/                     # useSession, useCoverPhotos, useNow (minute ticker), use-mobile
+│   ├── integrations/supabase/     # Browser client, server clients, auth middleware, generated DB types
+│   ├── lib/
+│   │   ├── shops.functions.ts     # Public queries (isomorphic)
+│   │   ├── owner.functions.ts     # Admin server functions: claims, pending listings, publish
+│   │   ├── admin.functions.ts     # Page-view recording, admin stats
+│   │   ├── places.server.ts       # Google Places search/photo import (server-only)
+│   │   ├── hours.ts               # Opening-hours model and Manila-time logic
+│   │   ├── shop-form.ts           # Zod schema + hours normalisation for listing forms
+│   │   ├── photos.ts              # Storage helpers, validation, signed URLs
+│   │   ├── auth.ts                # safeRedirect, credential schemas
+│   │   └── public-query.ts        # SSR-with-browser-recovery preload helper
+│   ├── router.tsx                 # Router + SSR query-cache integration
+│   ├── start.ts                   # Global middleware: auth attacher, CSRF, error page
+│   ├── server.ts                  # Worker fetch entry wrapping TanStack Start
+│   └── styles.css                 # Tailwind 4 theme and design tokens
+├── supabase/
+│   ├── config.toml                # Linked project id
+│   └── migrations/                # Schema, RLS, grants, triggers, RPCs (source of truth)
+├── tests/
+│   ├── *.test.ts(x)               # Vitest: hours, photos, public-query, reviews, database (PGlite)
+│   ├── e2e/                       # Playwright: app.spec.ts, map.spec.ts
+│   └── fixtures/backend.mjs       # Synthetic Supabase-compatible backend for E2E
+├── docs/screenshots/              # UI captures used in this README
+├── public/                        # favicon, robots.txt
+├── wrangler.toml                  # Cloudflare Workers configuration
+├── vite.config.ts · vitest.config.ts · playwright.config.ts
+├── DEPLOY-CLOUDFLARE.md           # Step-by-step deployment guide
+└── FIXES.md                       # Change log of functional fixes and the pre-deploy checklist
 ```
 
-## System workflow
+## Getting started
 
-```mermaid
-flowchart LR
-    Browse[Browse published cafés] --> Filter[Search and filter]
-    Filter --> Detail[Open café details]
-    Detail --> Directions[Get directions]
-    Detail --> Login[Sign in]
-    Login --> Review[Create or update own review]
-    Login --> Upload[Upload café photos]
-    Login --> Submit[Submit new café]
-    Submit --> Pending[Pending listing]
-    Pending --> Publish[Admin publishes listing]
-    Publish --> Browse
-    Login --> Claim[Request ownership]
-    Claim --> Decision{Admin decision}
-    Decision -->|Approve| Assign[Atomically assign owner]
-    Decision -->|Reject| Rejected[Keep request history]
-    Assign --> Manage[Edit owned café details]
-```
+### Prerequisites
 
-1. **Discovery:** load published listings; filter by city, area, tag, text, or “open now.” Opening status is calculated in `Asia/Manila`, including overnight schedules.
-2. **Contribution:** authenticate with Supabase to write a review or upload photos. Each user has at most one review per café.
-3. **Submission:** validate details and save a pending listing before uploading optional photos. A partial upload failure does not require resubmitting the café.
-4. **Ownership:** submit a pending claim. Approval locks the relevant records, assigns the owner, and rejects competing pending claims for the same café.
-5. **Moderation:** administrators publish pending listings and review ownership requests. Owners cannot self-publish or transfer a listing through ordinary updates.
-6. **Import, optional:** a trusted operator triggers Google Places synchronization. The importer preserves existing slugs and skips owner-managed detail updates.
+- **Node.js 22.12+** and **npm 10+** (the repo also ships a `bun.lock`, but `package-lock.json` + `npm ci` is the reproducible path).
+- A **Supabase project** (the free tier is sufficient).
+- Optional: a Cloudflare account for deployment, and Chromium for the browser tests.
+- A WebGL-capable browser that can reach `tiles.openfreemap.org` to render maps.
 
-## Feature list
-
-| Area           | Implemented capabilities                                                                                     |
-| -------------- | ------------------------------------------------------------------------------------------------------------ |
-| Directory      | Text search; city, neighborhood, and atmosphere filters; open-now filtering; price levels                    |
-| Maps           | OpenFreeMap vector basemap, café pins, selection, zoom, hover/focus details, retry and external-map fallback |
-| Café profiles  | Address, directions, weekly hours, photos, tags, ratings, and reviews                                        |
-| Coffee guide   | City-specific shortlists, deterministic ranking, comparison cards, and curated drink suggestions             |
-| Authentication | Email/password sign-in and signup; Google OAuth when configured; safe post-login destinations                |
-| Reviews        | One review per user/café, ratings from 1–5, update and delete own review                                     |
-| Photos         | JPG/PNG/WebP uploads up to 5 MiB, signed display URLs, own-photo deletion, orphan-upload cleanup             |
-| Owner tools    | New listing submission, ownership requests, and owner-only detail/hour editing                               |
-| Administration | Pending-listing publication, claim decisions, and activity statistics                                        |
-| Reliability    | SSR-to-browser data recovery, bounded public requests, explicit loading/errors, and mobile navigation        |
-
-### Page routes
-
-| Route              | Purpose                            | Access             |
-| ------------------ | ---------------------------------- | ------------------ |
-| `/`                | Directory and map                  | Public             |
-| `/guide`           | Coffee guide and comparison        | Public             |
-| `/shops/:shopSlug` | Individual café                    | Published listings |
-| `/auth`            | Member sign-in/signup              | Public             |
-| `/owners`          | Owner sign-in/signup               | Public             |
-| `/submit`          | Submit a café                      | Signed-in users    |
-| `/owner`           | Owned listings and claims          | Signed-in users    |
-| `/manage/:shopId`  | Edit a café                        | Listing owner      |
-| `/claims`          | Publish listings and review claims | Administrators     |
-| `/admin`           | Analytics dashboard                | Administrators     |
-
-## API documentation
-
-The application uses **typed query functions, TanStack Start server functions, and Supabase APIs**. It does not expose a general-purpose `/api/shops` REST API or an OpenAPI specification.
-
-### Public query functions
-
-Source: [`src/lib/shops.functions.ts`](src/lib/shops.functions.ts).
-
-| Function           | Input                        | Result                                                      |
-| ------------------ | ---------------------------- | ----------------------------------------------------------- |
-| `listShops()`      | None                         | Published `Shop[]`, ordered by name                         |
-| `listGuideShops()` | None                         | Published listings with `average_rating` and `review_count` |
-| `getShopBySlug()`  | `{ data: { slug: string } }` | Published `Shop` or `null`                                  |
-
-These functions choose an anonymous server client during SSR and the browser client during client-side navigation. All shop reads explicitly filter for published status. Requests have an eight-second timeout; network failures throw rather than masquerading as empty results.
-
-```ts
-import { getShopBySlug, listShops } from "@/lib/shops.functions";
-
-const shops = await listShops();
-const shop = await getShopBySlug({ data: { slug: "your-cafe-slug" } });
-```
-
-### Server functions
-
-Call these through their exported functions. Their HTTP transport paths are generated by TanStack Start and are not a stable external API contract.
-
-| Function           | Method | Input                            | Authorization / result                                        |
-| ------------------ | ------ | -------------------------------- | ------------------------------------------------------------- |
-| `recordPageView`   | POST   | `{ data: { path } }`             | Public; returns `{ ok: true }`                                |
-| `amIAdmin`         | GET    | None                             | Valid session; returns a boolean                              |
-| `listClaims`       | GET    | None                             | Admin; latest 200 claims with café details                    |
-| `listPendingShops` | GET    | None                             | Admin; pending café summaries                                 |
-| `decideClaim`      | POST   | `{ data: { claimId, approve } }` | Admin; UUID and boolean validated; returns `{ ok: true }`     |
-| `publishShop`      | POST   | `{ data: { shopId } }`           | Admin; UUID validated; returns `{ ok: true }`                 |
-| `getAdminStats`    | GET    | None                             | Admin; activity, listing, photo, claim, and signup statistics |
-
-The global auth-attacher adds `Authorization: Bearer <access_token>` to browser server-function calls. Protected handlers validate claims before querying with the user's token. Invalid inputs, authorization failures, and database errors reject the call; callers must handle them.
-
-See [`owner.functions.ts`](src/lib/owner.functions.ts) and [`admin.functions.ts`](src/lib/admin.functions.ts). Analytics aggregates operate on bounded queries and should not be treated as an unlimited reporting warehouse.
-
-### Direct Supabase operations
-
-Reviews, photo metadata, submissions, owner edits, and claim creation use the Supabase SDK directly under RLS. Photo bytes use the `shop-photos` storage bucket. The client never needs a service-role key for these operations.
-
-### HTTP endpoint: Google Places synchronization
-
-```http
-POST /api/public/sync-places
-x-sync-token: <PLACES_SYNC_TOKEN>
-```
-
-**This endpoint modifies listings.** Invoke it only from a trusted operator environment. The `public` path segment does not mean unauthenticated access is allowed. No request body is required.
-
-Required server configuration: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `PLACES_SYNC_TOKEN`, `LOVABLE_API_KEY`, and `GOOGLE_MAPS_API_KEY`. The Google integration uses the Lovable connector gateway, not an arbitrary browser Maps key.
+### 1. Clone and install
 
 ```bash
-<<<<<<< HEAD
-=======
-# APP_ORIGIN and PLACES_SYNC_TOKEN must already be set in your trusted shell.
-curl --fail-with-body --request POST \
-  "${APP_ORIGIN}/api/public/sync-places" \
-  --header "x-sync-token: ${PLACES_SYNC_TOKEN}"
+git clone https://github.com/aikanii/kape-norte-cdoiligan.git
+cd kape-norte-cdoiligan
+npm ci
 ```
 
-Example success response; counts are illustrative:
+### 2. Set up the database
 
-```json
-{
-  "imported": 24,
-  "preservedOwnerListings": 2,
-  "photos": 18
-}
+Apply the migrations in [`supabase/migrations/`](supabase/migrations/) to your project with the Supabase CLI:
+
+```bash
+npx supabase login
+npx supabase link --project-ref <your-project-ref>
+npx supabase db push --dry-run   # review the plan
+npx supabase db push
 ```
 
-| Status | Meaning                                                                      |
-| ------ | ---------------------------------------------------------------------------- |
-| `200`  | Import completed; no-result responses contain `imported: 0` and a `note`     |
-| `401`  | Missing, incorrect, or unconfigured sync token                               |
-| `500`  | Database/configuration failure; some import steps may already have completed |
-| `502`  | Initial Places lookup failed                                                 |
+> **Warning for existing databases.** The migration history includes an early seed-data cleanup step that deletes reviews and non-Google-Places listings. Applying the full history to a **fresh** project is safe; never replay individual historical migrations against a database that already holds real data. The moderation features require the final migration, [`20260920030000_functional_fixes.sql`](supabase/migrations/20260920030000_functional_fixes.sql).
 
-Successful responses are JSON; explicit error responses are generally plain text. Import and photo updates are not one transaction. The repository does not configure a scheduler for this endpoint.
+The migrations create all tables, enums, indexes, RLS policies, grants, triggers, RPCs, and the private `shop-photos` storage bucket.
 
-## Database schema
+### 3. Configure Supabase Auth
 
-PostgreSQL is managed by Supabase. Application tables live in `public`; identities and file objects use the managed `auth` and `storage` schemas.
+In the Supabase dashboard → **Authentication → URL Configuration**, set your site URL and add redirect URLs for your local and deployed origins (the app redirects back to paths such as `/`, `/owner`, `/submit`, and café pages). Enable the **Google** provider if you want "Continue with Google"; email/password works without it.
+
+### 4. Create an administrator
+
+Admin rights are granted purely through the database. From the SQL editor (or another trusted session):
+
+```sql
+insert into public.user_roles (user_id, role)
+values ('<auth.users.id of your account>', 'admin');
+```
+
+Admins see **Review listings** and **Analytics** in the header.
+
+### 5. Configure environment variables
+
+```bash
+cp .env.example .env
+```
+
+Fill in your project's URL and publishable key for both the `VITE_*` (browser, build-time) and non-prefixed (server, runtime) variables. See [Environment variables](#environment-variables).
+
+> **Note:** a `.env` file is currently tracked in this repository even though `.gitignore` lists it. Overwrite it with your own values and take care not to commit them (`git update-index --skip-worktree .env` is one option). Never put service-role keys or sync tokens in `VITE_*` variables.
+
+### 6. Run the app
+
+```bash
+npm run dev
+```
+
+The dev server listens on **http://localhost:8080** by default (pass `-- --port 3000` to change it). A fresh database has no published listings: sign in, submit a café at `/submit`, then publish it from `/claims` with your admin account — or run the optional [Google Places import](#google-places-import).
+
+## Available scripts
+
+| Script               | What it does                                                                 |
+| -------------------- | ---------------------------------------------------------------------------- |
+| `npm run dev`        | Start the Vite/TanStack Start dev server with HMR on port 8080               |
+| `npm run build`      | Production build → `.output/server/` (Worker) and `.output/public/` (assets) |
+| `npm run build:dev`  | Same build with `--mode development`                                         |
+| `npm run preview`    | Preview the production build locally                                         |
+| `npm run typecheck`  | `tsc --noEmit` with strict settings                                          |
+| `npm run lint`       | ESLint (TypeScript, React Hooks, React Refresh, Prettier)                    |
+| `npm run format`     | Prettier write across the repo                                               |
+| `npm test`           | Vitest: unit, component, and PGlite database-policy tests                    |
+| `npm run test:watch` | Vitest in watch mode                                                         |
+| `npm run test:e2e`   | Playwright browser tests against isolated fixtures                           |
+
+## Environment variables
+
+| Variable                        | Scope                       | Required    | Purpose                                                          |
+| ------------------------------- | --------------------------- | ----------- | ---------------------------------------------------------------- |
+| `VITE_SUPABASE_URL`             | Browser (baked in at build) | Yes         | Supabase project URL                                             |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Browser (baked in at build) | Yes         | Publishable/anon key — safe to expose; RLS governs access        |
+| `SUPABASE_URL`                  | Server runtime              | Yes         | Same project URL for SSR and server functions                    |
+| `SUPABASE_PUBLISHABLE_KEY`      | Server runtime              | Yes         | Anonymous SSR reads and user-token validation                    |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Server secret               | Import only | Bypasses RLS; used **only** by the Places import route           |
+| `PLACES_SYNC_TOKEN`             | Server secret               | Import only | Shared secret checked in the `x-sync-token` header               |
+| `LOVABLE_API_KEY`               | Server secret               | Import only | Bearer token for the Lovable Google Maps connector gateway       |
+| `GOOGLE_MAPS_API_KEY`           | Server secret               | Import only | Connection key forwarded to the gateway (`X-Connection-Api-Key`) |
+
+Browser and server values must point at the **same** Supabase project. Because `VITE_*` values are embedded at build time, rebuild after changing them. In production the two `SUPABASE_*` runtime values are declared in [`wrangler.toml`](wrangler.toml) `[vars]`; secrets are set with `wrangler secret put`.
+
+## Data model
+
+All application tables live in the `public` schema; identities and files use Supabase's managed `auth` and `storage` schemas. [`supabase/migrations/`](supabase/migrations/) is the source of truth and [`src/integrations/supabase/types.ts`](src/integrations/supabase/types.ts) holds the generated TypeScript types.
 
 ```mermaid
 erDiagram
-    AUTH_USERS ||--o| PROFILES : has
-    AUTH_USERS o|--o{ SHOPS : owns
-    AUTH_USERS ||--o{ REVIEWS : writes
-    AUTH_USERS o|--o{ SHOP_PHOTOS : uploads
-    AUTH_USERS ||--o{ USER_ROLES : receives
-    AUTH_USERS ||--o{ SHOP_CLAIMS : requests
-    AUTH_USERS o|--o{ SHOP_CLAIMS : reviews
-    SHOPS ||--o{ REVIEWS : receives
-    SHOPS ||--o{ SHOP_PHOTOS : contains
-    SHOPS ||--o{ SHOP_CLAIMS : receives
+    AUTH_USERS ||--o| PROFILES : "has"
+    AUTH_USERS o|--o{ SHOPS : "owns (submitted_by)"
+    AUTH_USERS ||--o{ REVIEWS : "writes"
+    AUTH_USERS o|--o{ SHOP_PHOTOS : "uploads"
+    AUTH_USERS ||--o{ USER_ROLES : "holds"
+    AUTH_USERS ||--o{ SHOP_CLAIMS : "requests"
+    SHOPS ||--o{ REVIEWS : "receives"
+    SHOPS ||--o{ SHOP_PHOTOS : "has"
+    SHOPS ||--o{ SHOP_CLAIMS : "receives"
 
-    AUTH_USERS {
-        uuid id PK
-    }
-    PROFILES {
-        uuid id PK,FK
-        text display_name
-        timestamptz created_at
-    }
     SHOPS {
         uuid id PK
         text slug UK
-        text place_id UK
-        uuid submitted_by FK
+        text place_id UK "Google Places id, nullable"
         text name
         text city
+        text area
+        text address
+        text blurb
+        smallint price_level "1-4"
+        text[] tags
+        double lat
+        double lng
         jsonb hours
-        shop_status status
+        shop_status status "pending | published"
+        uuid submitted_by FK "owner"
+        text google_photo_url
     }
     REVIEWS {
         uuid id PK
         uuid shop_id FK
         uuid user_id FK
-        smallint rating
+        smallint rating "1-5, unique per shop+user"
         text comment
     }
     SHOP_PHOTOS {
         uuid id PK
         uuid shop_id FK
         uuid uploaded_by FK
-        text storage_path
+        text storage_path "<user-id>/<uuid>.<ext>"
         smallint sort_order
-    }
-    USER_ROLES {
-        uuid id PK
-        uuid user_id FK
-        app_role role
     }
     SHOP_CLAIMS {
         uuid id PK
         uuid shop_id FK
         uuid user_id FK
-        uuid reviewed_by FK
-        claim_status status
+        claim_status status "pending | approved | rejected"
+        text contact_name
         text contact_email
+        uuid reviewed_by FK
+    }
+    USER_ROLES {
+        uuid user_id FK
+        app_role role "admin | moderator | user"
+    }
+    PROFILES {
+        uuid id PK
+        text display_name
     }
     PAGE_VIEWS {
         uuid id PK
         text path
-        text referrer
         timestamptz created_at
     }
 ```
 
-### Constraints and conventions
+### Opening hours format
 
-- `shops.slug` is unique; nullable `place_id` identifies imported Google Places records.
-- `reviews` has a unique `(shop_id, user_id)` pair and a database rating check of `1–5`.
-- `user_roles` has a unique `(user_id, role)` pair. Roles are `admin`, `moderator`, and `user`; current administrative workflows check **admin**.
-- `shop_claims` permits one pending request per `(shop_id, user_id)`. Status is `pending`, `approved`, or `rejected`.
-- Listing status is `pending` or `published`. Ownership is represented by `shops.submitted_by`.
-- Shop deletion cascades to reviews, photo metadata, and claims. Deleting metadata does not inherently delete the corresponding stored file.
-- `handle_new_user()` creates the profile on signup; `touch_updated_at()` maintains update timestamps on relevant tables.
-
-Opening hours use weekday keys and extended closing times:
+`shops.hours` is a JSON object keyed by weekday. Each value is `[open, close]` or `null` (closed). Closing times may exceed `24:00` to express overnight hours:
 
 ```json
 {
-  "mon": ["08:00", "20:00"],
-  "fri": ["16:00", "27:00"],
-  "sun": null
 }
 ```
 
-`27:00` means 3 AM the following day. `null` means closed. Form validation normalizes overnight ranges, accepts price levels `1–4`, and rejects missing/out-of-range coordinates. These form rules are not all SQL constraints.
+`"27:00"` means 3 AM the following day; `["00:00", "24:00"]` on every day means always open. Form input is normalised by [`normalizeHours`](src/lib/shop-form.ts), which rejects invalid times and ranges longer than 24 hours.
 
-### Database RPCs and storage
+### Permissions at a glance
 
-| Function / resource                      | Responsibility                                                    |
-| ---------------------------------------- | ----------------------------------------------------------------- |
-| `has_role(_user_id, _role)`              | Role membership check                                             |
-| `review_shop_claim(_claim_id, _approve)` | Admin-only, transactional claim decision and ownership assignment |
-| `publish_shop(_shop_id)`                 | Admin-only publication of a pending listing                       |
-| `shop-photos` bucket                     | Private bucket; files stored under `<user-id>/<uuid>.<extension>` |
+| Table / resource      | Anonymous                | Member                                           | Listing owner                                                        | Admin                                      |
+| --------------------- | ------------------------ | ------------------------------------------------ | -------------------------------------------------------------------- | ------------------------------------------ |
+| `shops`               | read published           | read published; insert own as `pending`          | + read own; update details columns only (no `status`/`submitted_by`) | + read all; publish via `publish_shop()`   |
+| `reviews`             | read                     | insert / update / delete own (1 per shop)        | —                                                                    | —                                          |
+| `shop_photos`         | read for published shops | insert into own folder; update / delete own      | + read photos of own listings                                        | + read all                                 |
+| `shop_claims`         | —                        | insert own `pending`; read own                   | —                                                                    | read all; decide via `review_shop_claim()` |
+| `user_roles`          | —                        | read own                                         | —                                                                    | — (writes only via trusted DB session)     |
+| `page_views`          | insert                   | insert                                           | —                                                                    | read                                       |
+| `profiles`            | read                     | insert / update own (auto-created on sign-up)    | —                                                                    | —                                          |
+| Storage `shop-photos` | read objects             | upload / update / delete within `<own-user-id>/` | —                                                                    | —                                          |
 
-Photo display uses signed URLs valid for one hour. A private bucket is not a confidentiality guarantee: the current storage SELECT policy allows reading objects in this bucket. Do not upload sensitive documents.
+Database functions: `has_role(user_id, role)`, `publish_shop(shop_id)`, `review_shop_claim(claim_id, approve)`; triggers `handle_new_user()` (creates a profile) and `touch_updated_at()`.
 
-**Schema source of truth:** [`supabase/migrations/`](supabase/migrations/). TypeScript definitions: [`src/integrations/supabase/types.ts`](src/integrations/supabase/types.ts).
+## Application routes
 
-### Applying migrations
+| Route                          | Page                                                             | Access                           |
+| ------------------------------ | ---------------------------------------------------------------- | -------------------------------- |
+| `/`                            | Directory with search, filters and map                           | Public                           |
+| `/guide`                       | Coffee guide, must-try drinks, comparison table                  | Public                           |
+| `/shops/:shopSlug`             | Café detail, gallery, reviews, map, directions                   | Public (published listings only) |
+| `/auth`                        | Member sign-in / sign-up (email or Google), honours `?redirect=` | Public                           |
+| `/owners`                      | Café-owner sign-in / sign-up, lands on `/owner`                  | Public                           |
+| `/submit`                      | Submit a new café                                                | Signed in                        |
+| `/owner`                       | Owner dashboard: listings and claims                             | Signed in                        |
+| `/manage/:shopId`              | Edit an owned listing                                            | Listing owner                    |
+| `/claims`                      | Publish pending listings, decide ownership claims                | Admin                            |
+| `/admin`                       | Analytics dashboard                                              | Admin                            |
+| `POST /api/public/sync-places` | Google Places import                                             | `x-sync-token` header            |
 
-Use Supabase CLI migration history against the intended project, or apply only unapplied SQL through an authorized database session. Back up existing data and inspect pending changes first.
+### Coffee guide ranking
 
-> **Migration warning:** historical migrations include seed-data cleanup that deletes reviews and non-Places listings. Do not replay migration history manually against an existing production database. The current moderation workflows require [`20260920030000_functional_fixes.sql`](supabase/migrations/20260920030000_functional_fixes.sql).
-
-For a linked development project, inspect the plan before applying:
-
-```bash
-npx supabase login
-npx supabase link --project-ref YOUR_PROJECT_REF
-npx supabase db push --dry-run
-# Review the plan and confirm the target project before running:
-npx supabase db push
-```
-
-See [FIXES.md](FIXES.md) for the migration and authorization checklist.
-
-## AI architecture
-
-**There is no runtime AI/ML subsystem in this application.** No LLM calls, embeddings, vector database, RAG pipeline, model training, or AI-driven moderation are implemented. The Lovable integration is infrastructure/tooling, not an inference pipeline.
-
-The coffee guide uses a transparent, deterministic ranking function:
+The guide's "Top picks" are chosen by a deterministic score computed in [`src/routes/guide.tsx`](src/routes/guide.tsx):
 
 ```text
-reviewScore = averageRating × 12 + min(reviewCount, 10) × 2
-              (0 when no average rating is available)
-
-detailScore = (Google cover photo available ? 8 : 0)
-              + number of tags
-              + number of days with configured opening hours
-
-score = reviewScore + detailScore
+reviewScore = averageRating × 12 + min(reviewCount, 10) × 2     (0 with no reviews)
+detailScore = (has Google cover photo ? 8 : 0) + tagCount + daysWithHours
+score       = reviewScore + detailScore
 ```
 
-Listings are filtered by city, sorted by score, and limited to six picks. Drink suggestions are curated static content. Google Places supplies listing data, not AI recommendations.
+Listings are filtered by city, sorted by score, and limited to six. Must-try drinks are curated static content.
 
-Implementation: [`src/routes/guide.tsx`](src/routes/guide.tsx). Any future AI feature would need a separate design covering consent, data minimization, evaluation, cost limits, and a non-AI fallback; it is not part of the current feature set.
+## Server functions and HTTP endpoints
 
-## Security considerations
+There is no general-purpose REST API. Data access is a mix of typed query functions, TanStack Start server functions, and direct Supabase SDK calls under RLS.
 
-### Implemented controls
+### Public query functions — [`src/lib/shops.functions.ts`](src/lib/shops.functions.ts)
 
-- **RLS and column grants:** users can edit their own reviews and permitted listing fields, not self-publish or transfer ownership.
-- **Verified identity:** protected server functions validate Supabase JWT claims; administrative operations also check role membership.
-- **Transactional moderation:** claim approval serializes decisions for a café and rejects already-reviewed claims.
-- **CSRF protection:** TanStack Start CSRF middleware covers server-function requests. The standalone sync endpoint uses a separate shared-secret header.
-- **Input handling:** Zod validates forms and administrative inputs; login destinations are restricted to local paths; map popup text is inserted as text, not interpolated HTML.
-- **Upload controls:** supported image MIME types, a 5 MiB size limit, per-user storage paths, and cleanup when a metadata insert fails.
-- **Secret isolation:** the service-role client is server-only and reserved for trusted imports. `VITE_*` values are public browser-build configuration.
+| Function                            | Returns                                                  |
+| ----------------------------------- | -------------------------------------------------------- |
+| `listShops()`                       | Published `Shop[]` ordered by name                       |
+| `listGuideShops()`                  | Published shops with `average_rating` and `review_count` |
+| `getShopBySlug({ data: { slug } })` | Published `Shop` or `null`                               |
 
-### Deployment responsibilities and limitations
+All reads filter on `status = 'published'`, time out after 8 seconds, and throw on network failure rather than returning an empty list.
 
-- Never commit service-role keys, sync tokens, Google connector credentials, or Cloudflare deployment tokens. `.env.example` contains placeholders; an already tracked `.env` is not protected by adding it to `.gitignore`.
-- Configure Supabase Auth site/redirect URLs for your real origins. Google OAuth must be enabled separately; never grant admin access based on frontend state.
-- Assign administrator roles only through a trusted database/admin session.
-- Photo type checks are not malware scanning. Public profiles/reviews and the permissive storage read policy require a clear privacy policy.
-- Page-view ingestion is publicly writable, and no application-level rate limiter or bot challenge is implemented. Add appropriate abuse controls before scaling writes or imports.
-- Review CSP, monitoring, retention, backups, and external-provider terms. Preserve OpenStreetMap/OpenMapTiles/OpenFreeMap and Google photo attribution.
+### Server functions — [`owner.functions.ts`](src/lib/owner.functions.ts), [`admin.functions.ts`](src/lib/admin.functions.ts)
+
+| Function                                      | Method | Auth    | Description                                                       |
+| --------------------------------------------- | ------ | ------- | ----------------------------------------------------------------- |
+| `recordPageView({ data: { path } })`          | POST   | Public  | Inserts a page view (path truncated to 200 chars)                 |
+| `amIAdmin()`                                  | GET    | Session | Whether the caller has the `admin` role                           |
+| `listPendingShops()`                          | GET    | Admin   | Pending café summaries                                            |
+| `publishShop({ data: { shopId } })`           | POST   | Admin   | Calls `publish_shop()`; UUID validated with Zod                   |
+| `listClaims()`                                | GET    | Admin   | Latest 200 claims with café details                               |
+| `decideClaim({ data: { claimId, approve } })` | POST   | Admin   | Calls `review_shop_claim()`                                       |
+| `getAdminStats()`                             | GET    | Admin   | Aggregated analytics (bounded to the latest 5,000 rows per query) |
+
+Server-function transport URLs are generated by TanStack Start and are not a stable external contract — call the exported functions.
+
+### Google Places import
+
+```http
+POST /api/public/sync-places
+x-sync-token: <PLACES_SYNC_TOKEN>
+```
+
+Despite the `public` path segment this endpoint **modifies data** and must only be called from a trusted environment. It requires `SUPABASE_SERVICE_ROLE_KEY`, `PLACES_SYNC_TOKEN`, `LOVABLE_API_KEY`, and `GOOGLE_MAPS_API_KEY` on the server.
+
+What it does ([`src/lib/places.server.ts`](src/lib/places.server.ts)):
+
+1. Runs text searches for _coffee shop_, _cafe_, _specialty coffee_, and _coffee roaster_ in each city (up to three pages each), keeping only places typed `coffee_shop` or `cafe` whose address matches the city.
+2. Maps Google data to the `shops` shape: slug (`<name>-iligan` / `<name>-cdo`, de-duplicated), city/area from address components, price level, tags derived from place types, opening hours converted to the extended format, and the first photo with attribution.
+3. Upserts on `place_id`, **preserving existing slugs** and **skipping any listing that has an owner** (`submitted_by` set).
+4. Backfills cover photos for up to 30 published Places listings that still lack one.
+
+```bash
+curl --fail-with-body -X POST "$APP_ORIGIN/api/public/sync-places" \
+  -H "x-sync-token: $PLACES_SYNC_TOKEN"
+# → {"imported": 24, "preservedOwnerListings": 2, "photos": 18}
+```
+
+| Status | Meaning                                                                    |
+| ------ | -------------------------------------------------------------------------- |
+| `200`  | Import finished (`imported: 0` with a `note` when Google returned nothing) |
+| `401`  | Missing, wrong, or unconfigured sync token                                 |
+| `500`  | Database or configuration failure (some steps may have completed)          |
+| `502`  | The initial Places lookup failed                                           |
+
+No scheduler is configured; trigger it manually or from your own cron.
 
 ## Testing
 
 ```bash
-npm ci
-npm run lint
 npm run typecheck
-npm test
-npm run build
-
-# Install Chromium and its system dependencies once, then run browser tests.
-npx playwright install --with-deps chromium
-npm run test:e2e
+npm run lint
+npm test                                   # 30 tests across 5 files, ~5 s
+npx playwright install --with-deps chromium  # once
+npm run test:e2e                           # 11 browser tests
 ```
 
-| Layer           | Tooling                       | Coverage                                                                                                                     |
-| --------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Domain logic    | Vitest                        | Manila time, overnight/24-hour schedules, redirects, coordinates, and form validation                                        |
-| Components      | React Testing Library + jsdom | Review loading, failed writes/deletes, and form recovery                                                                     |
-| Storage helpers | Vitest mocks                  | Image validation, denied deletion, and orphan-upload cleanup                                                                 |
-| Database        | PGlite                        | Real migrations, grants, RLS, publication, and claim RPCs with minimal Supabase schema stubs                                 |
-| Browser         | Playwright                    | Search/filtering, details/404s, sign-in recovery, submissions, owner dashboard, mobile navigation, maps, and outage recovery |
+| Layer           | Tooling                          | What is covered                                                                                                                                                                                                       |
+| --------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Domain logic    | Vitest                           | Manila-time open state, overnight and 24-hour schedules, hours normalisation, Places hours import, form validation, safe redirects, password policy                                                                   |
+| Components      | Testing Library + jsdom          | Review loading, failed writes/deletes, form recovery, distinguishing an outage from an empty list                                                                                                                     |
+| Storage helpers | Vitest mocks                     | Image type/size validation, orphaned-upload cleanup, denied deletions                                                                                                                                                 |
+| Database        | PGlite (real PostgreSQL in WASM) | Applies **every migration** to an isolated database with minimal `auth`/`storage` stubs, then asserts grants, RLS, owner restrictions, `publish_shop`, and atomic `review_shop_claim` behaviour                       |
+| Browser         | Playwright                       | Directory search/filters, café detail and 404, login redirect and recovery, mobile navigation, SSR-failure recovery, full-outage retry, real MapLibre canvas rendering, blocked-tiles fallback, and no-WebGL fallback |
 
-`npm run test:watch` runs Vitest interactively. `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` can select an existing Chromium executable.
+The Playwright config starts the app on **port 3100** and a synthetic Supabase-compatible backend ([`tests/fixtures/backend.mjs`](tests/fixtures/backend.mjs)) on **port 4100**; nothing touches a real Supabase project. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to reuse an existing Chromium.
 
-Browser tests start an isolated app on **3100** and a synthetic backend on **4100**. Map-specific tests exercise the actual canvas and bundled worker with a deterministic style fixture. These tests do not write to production Supabase and do not prove live OAuth, external tile availability, or production deployment health. Reserve both ports before running the suite.
+## Deployment
 
-## Docker setup
-
-**Current status:** no Dockerfile, Compose stack, or production container image is checked in. Production targets Cloudflare Workers, not a standalone Node server.
-
-For optional **local development**, run the existing app inside the official Node image. Configure `.env` first using the [local setup](#local-development). This mounts your working tree, including `.env`, into a trusted local container; it does not bake credentials into an image.
-
-```bash
-docker run --rm -it \
-  --name kape-norte-dev \
-  --publish 3000:3000 \
-  --workdir /app \
-  --volume "$PWD:/app" \
-  --volume kape-norte-node-modules:/app/node_modules \
-  node:22-bookworm-slim \
-  sh -c 'npm ci && npm run dev -- --host 0.0.0.0 --port 3000'
-```
-
-Open `http://localhost:3000`. The named volume keeps Linux dependencies separate from host `node_modules`. Supabase remains an external service; this command does not provision a database, apply migrations, or include browser-test dependencies. This is a development recipe, not a validated production Docker deployment.
-
-## CI/CD
-
-**Current status:** no CI workflow is committed under `.github/workflows/`, and automatic deployment is not configured in this repository.
-
-### Recommended quality gates
-
-| Stage                   | Commands / action                                                  |
-| ----------------------- | ------------------------------------------------------------------ |
-| Install                 | Node 22.12+ and `npm ci`                                           |
-| Static checks           | `npm run lint` and `npm run typecheck`                             |
-| Unit and database tests | `npm test`                                                         |
-| Browser tests           | Install Playwright Chromium; run `npm run test:e2e`                |
-| Production build        | Set the intended public build variables; run `npm run build`       |
-| Release approval        | Review migration plan, environment changes, and smoke-test results |
-| Deployment              | Deploy the prebuilt Cloudflare Worker using an authorized account  |
-
-A future deployment workflow should keep Cloudflare tokens in protected environment secrets, avoid production credentials on untrusted pull requests, and separate database migration approval from ordinary application builds.
-
-### Manual Cloudflare deployment
-
-1. Complete the database and Auth configuration.
-2. Ensure the public URL/key in `wrangler.toml` match the browser's `VITE_SUPABASE_*` values. The checked-in project references must be changed when deploying against a different Supabase project.
-3. Configure optional import credentials as Worker secrets only if using Places synchronization.
-4. Build and deploy:
+Production targets **Cloudflare Workers**. The full walkthrough is in [DEPLOY-CLOUDFLARE.md](DEPLOY-CLOUDFLARE.md); the short version:
 
 ```bash
 npx wrangler login
 npm ci
->>>>>>> d69ab9cbac80d5d56ed414a71fab1b3a227786e9
-npm run build
-npx wrangler deploy
+npm run build           # uses VITE_* from your .env
+npx wrangler deploy     # prints https://kape-norte.<subdomain>.workers.dev
 ```
 
-Do not create a Wrangler secret with the same name as an existing `[vars]` entry. Nitro generates deployment metadata under `.output/` and `.wrangler/`; the application includes a custom SSR entry at `src/server.ts`.
+Before the first deploy:
 
-After deployment, smoke-test `/`, `/guide`, a published café, authentication redirects, and an authorized owner/admin workflow. Verify map resources load from the deployment origin. See [DEPLOY-CLOUDFLARE.md](DEPLOY-CLOUDFLARE.md) and [FIXES.md](FIXES.md) for operational context.
+1. Apply the migrations and configure Auth URLs for the production origin ([Getting started](#getting-started)).
+2. Edit the `[vars]` block in [`wrangler.toml`](wrangler.toml) — it currently references a specific Supabase project — so `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` match the `VITE_*` values used for the build.
+3. Only if you use the Places import: `npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY`, `PLACES_SYNC_TOKEN`, `LOVABLE_API_KEY`, `GOOGLE_MAPS_API_KEY`. Do not create a secret with the same name as an existing `[vars]` entry.
+4. Optionally attach a custom domain under **Workers & Pages → kape-norte → Settings → Domains & Routes** (the project's intended domain is `kapenorte.dpdns.org`).
 
-## Screenshots
+After deploying, smoke-test `/`, `/guide`, a café page, sign-in redirects, and an owner/admin flow, and confirm the map loads from the deployed origin.
 
-These are real UI captures from the isolated development fixtures. Café names and counts are **sample data**, not production listings. They do not demonstrate live map-provider connectivity.
+**CI/CD:** no GitHub Actions workflow is committed yet. A sensible pipeline is `npm ci → typecheck → lint → test → build`, with the E2E suite and `wrangler deploy` gated behind protected secrets.
 
-### Directory and discovery controls
+**Docker:** no Dockerfile is provided; the app is not a long-running Node server. For a containerised dev loop you can run `node:22-bookworm-slim` with the repo mounted and execute `npm ci && npm run dev -- --host 0.0.0.0`.
 
-![Kape Norte directory with city, neighborhood and atmosphere search controls](docs/screenshots/directory.png)
+## Security model
 
-<details>
-<summary>Coffee guide and comparison — expand screenshot</summary>
+- **Row-level security and column grants** are the authorization boundary. Owners can edit listing details but not `status` or `submitted_by`; admins act through `SECURITY DEFINER` RPCs that re-verify `has_role()` inside the database.
+- **Server functions** verify the Supabase JWT with `auth.getClaims()` and query with the _user's_ token, never the service role. TanStack Start's CSRF middleware is explicitly re-enabled in [`src/start.ts`](src/start.ts).
+- **Input validation** with Zod on forms and server-function payloads; login redirects limited to local paths; map popup content inserted as text nodes, never HTML.
+- **Uploads** are restricted to JPEG/PNG/WebP ≤ 5 MiB, stored under the uploader's folder, and cleaned up if the metadata insert fails. The bucket also enforces size and MIME limits.
+- **Secrets** stay server-side: the service-role client is imported lazily inside the import handler only, and `*.server.ts` modules never reach the client bundle.
 
-![Kape Norte coffee guide showing a sample café, curated drinks and a comparison card](docs/screenshots/guide.png)
+Operational responsibilities that remain with the deployer: rate limiting (page-view inserts and the import endpoint have none), CSP/monitoring, backups, a privacy policy (profiles and reviews are publicly readable, and the storage read policy is permissive), and preserving OpenStreetMap/OpenFreeMap and Google photo attribution.
 
-</details>
+## Known limitations and roadmap
 
-## Demo
+Current gaps that a contributor could pick up:
 
-### Local development
+- [ ] No CI workflow or Dockerfile
+- [ ] No application-level rate limiting or bot protection on public writes
+- [ ] No scheduler for the Places import; import and photo backfill are not one transaction
+- [ ] Deleting a shop or photo row does not delete the underlying storage object
+- [ ] Admin analytics are computed in memory from bounded queries (5,000 rows) — not a reporting warehouse
+- [ ] `moderator` role exists in the enum but has no behaviour yet
+- [ ] No geolocation ("near me"), user profiles pages, or notifications
+- [ ] The GitHub repository description mentions AI-powered semantic search and real-time location; neither exists in the codebase today
 
-**Prerequisites:** Node.js **22.12+**, npm, and a Supabase project. Map rendering requires a WebGL-capable browser with access to `tiles.openfreemap.org`. Core browsing does not require Google Places credentials.
+## Contributing
 
-```bash
-git clone https://github.com/aikanii/kape-norte-cdoiligan.git
-cd kape-norte-cdoiligan
-npm ci
+1. Fork and create a feature branch from `main`.
+2. Run `npm ci`, then keep `npm run typecheck`, `npm run lint`, and `npm test` green. Six pre-existing Fast Refresh warnings in `src/components/ui/*` are expected.
+3. Follow the existing conventions:
+   - **Formatting:** Prettier — 100-column width, double quotes, semicolons, trailing commas (`npm run format`).
+   - **Routing:** TanStack file-based routing only; read [`src/routes/README.md`](src/routes/README.md). Never hand-edit `src/routeTree.gen.ts`.
+   - **Server-only code** belongs in `*.server.ts` modules (or `createServerFn` handlers) and must be imported lazily from route/function files so it never ships to the browser. Do not use the Next.js `server-only` package (ESLint blocks it).
+   - **Database changes** go in a new timestamped file under `supabase/migrations/`; update `src/integrations/supabase/types.ts` and extend [`tests/database.test.ts`](tests/database.test.ts) for any policy change.
+   - **Styling:** semantic Tailwind tokens (`bg-background`, `text-primary`, …) defined in `src/styles.css`; new colours must be `oklch`.
+4. Add or update tests alongside behaviour changes, and include a screenshot for visible UI changes.
+5. Open a pull request describing the change, how you tested it, and any migration or environment implications.
 
-# Preserve an existing environment file.
-test -f .env || cp .env.example .env
-# Edit .env with your own Supabase project values before starting.
-npm run dev -- --host 0.0.0.0 --port 3000
-```
+## Acknowledgements and attribution
 
-Open `http://localhost:3000` after completing the database setup. A fresh project may have no published listings; submit and publish a café or explicitly configure the optional importer. No production demo accounts or shared admin passwords are provided.
+- Map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors; tiles by [OpenFreeMap](https://openfreemap.org) and [OpenMapTiles](https://openmaptiles.org); rendering by [MapLibre GL](https://maplibre.org). Keep the attribution visible.
+- Imported listing details and cover photos come from **Google Places**, with author attribution stored in `google_photo_attribution`.
+- UI primitives from [shadcn/ui](https://ui.shadcn.com) and [Radix UI](https://www.radix-ui.com); icons by [Lucide](https://lucide.dev).
+- Initially scaffolded with [Lovable](https://lovable.dev)'s TanStack Start template.
 
-### Environment variables
+If Kape Norte is useful to you, the maintainer accepts coffee at [buymeacoffee.com/aikanii](https://buymeacoffee.com/aikanii).
 
-| Variable                        | Scope                   | Purpose                                              |
-| ------------------------------- | ----------------------- | ---------------------------------------------------- |
-| `VITE_SUPABASE_URL`             | Public, build time      | Browser Supabase project URL                         |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | Public, build time      | Browser publishable key; not an authorization bypass |
-| `SUPABASE_URL`                  | Server runtime          | Matching Supabase project URL                        |
-| `SUPABASE_PUBLISHABLE_KEY`      | Server runtime          | Anonymous and user-scoped server queries             |
-| `SUPABASE_SERVICE_ROLE_KEY`     | Server secret, optional | Privileged Places import; never prefix with `VITE_`  |
-| `PLACES_SYNC_TOKEN`             | Server secret, optional | Authorizes the sync HTTP endpoint                    |
-| `LOVABLE_API_KEY`               | Server secret, optional | Google Maps connector gateway access                 |
-| `GOOGLE_MAPS_API_KEY`           | Server secret, optional | Connector connection credential used by the importer |
+## License
 
-See [`.env.example`](.env.example). Browser values are embedded in the build; changing runtime values alone does not update an already-built client. Public SSR reads can fall back to the browser when only the server's Supabase connection is unavailable.
-
-### Suggested walkthrough
-
-1. Browse `/`, search for a café, and change city/atmosphere filters.
-2. Open `/guide` to compare the city shortlist.
-3. Open a café, inspect hours and reviews, and use the map or directions link.
-4. Sign in and submit a review or a new café.
-5. Visit `/owner` to manage your listings or request ownership.
-6. With a separately provisioned admin account, visit `/claims` and `/admin`.
-
-### Hosted demo
-
-The deployment guide names **[kapenorte.dpdns.org](https://kapenorte.dpdns.org)** as the intended custom domain. Live availability and the currently deployed revision are not verified by this README. For a new deployment, use the `workers.dev` URL returned by Wrangler until your custom domain is configured.
-
-<<<<<<< HEAD
-- TanStack Start
-- TypeScript
-- React
-- Tailwind CSS
-- Supabase
-- Cloudflare Workers
-
-## Database setup and regression tests
-
-See [FIXES.md](FIXES.md) for the required database migration, auth configuration, automated test commands, and verification limitations. Use `npm ci` and `package-lock.json` for reproducible installs.
-
-## Map tiles
-
-Maps use OpenFreeMap (OpenStreetMap data) rendered with MapLibre GL. No map API key is needed. The map worker is bundled locally; the browser must be able to reach `tiles.openfreemap.org`. Network or WebGL failures show a retry action and an external-map link while the café list remains usable.
-=======
->>>>>>> d69ab9cbac80d5d56ed414a71fab1b3a227786e9
+No license file has been published yet, so all rights are reserved by the author by default. Open an issue if you would like to use the code under specific terms.
